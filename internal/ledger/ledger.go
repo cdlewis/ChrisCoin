@@ -15,6 +15,9 @@ import (
 
 const Allowance int64 = 100
 const MaxCoins int64 = 9007199254740991 // Exact in browser JavaScript, too.
+// MintAccountID is cdlewis's immutable GitHub ID. Its accepted offers issue new
+// coins instead of drawing from an available or reserved balance.
+const MintAccountID int64 = 553949
 
 type Actor struct {
 	ID    int64  `json:"id"`
@@ -274,11 +277,13 @@ func Replay(events []Event) (*State, error) {
 				return nil, errors.New("this GitHub ID already has an account and its starting balance")
 			}
 		case "offer":
-			if account.Available < c.Amount {
-				return nil, errors.New("not enough available ChrisCoin")
+			if account.ID != MintAccountID {
+				if account.Available < c.Amount {
+					return nil, errors.New("not enough available ChrisCoin")
+				}
+				account.Available -= c.Amount
+				account.Reserved += c.Amount
 			}
-			account.Available -= c.Amount
-			account.Reserved += c.Amount
 			id := fmt.Sprintf("offer-%d", e.Source.Issue)
 			state.Offers[id] = &Offer{ID: id, Sender: account.ID, RecipientLabel: c.Recipient, Amount: c.Amount, Status: "open", Event: e}
 		case "accept", "cancel":
@@ -295,13 +300,23 @@ func Replay(events []Event) (*State, error) {
 					return nil, errors.New("only the sender can cancel this offer")
 				}
 				offer.Status = "cancelled"
-				sender.Available += offer.Amount
+				if sender.ID != MintAccountID {
+					sender.Available += offer.Amount
+				}
 			} else {
+				if sender.ID == MintAccountID {
+					if state.Issued > MaxCoins-offer.Amount {
+						return nil, errors.New("maximum coin supply reached")
+					}
+					state.Issued += offer.Amount
+				}
 				offer.Status = "accepted"
 				offer.AcceptedBy = account.ID
 				account.Available += offer.Amount
 			}
-			sender.Reserved -= offer.Amount
+			if sender.ID != MintAccountID {
+				sender.Reserved -= offer.Amount
+			}
 		}
 		seen[e.ID] = true
 		state.Events = append(state.Events, e)

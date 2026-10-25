@@ -7,13 +7,15 @@ Money, by pull request. A silly currency whose ledger lives in Git.
 ## How it works
 
 1. Every GitHub account automatically starts with **100 ChrisCoin** on its first valid ledger entry. The **Get 100 CC** button is an optional way to open an account.
-2. Enter a recipient, like Amanda, and the amount to send. The coins are reserved.
+2. Enter a recipient, like Amanda, and the amount to send. Ordinary accounts reserve the coins until acceptance.
 3. Share the offer URL with the recipient. Acceptance happens on that page while signed into GitHub; the first acceptance successfully merged into the ledger settles it.
 4. If nobody has accepted, the sender can cancel and recover the reserved coins.
 
 The website opens a prefilled GitHub issue. Confirm it while signed in; a Go worker creates, validates, and automatically merges a ledger PR, then publishes the updated site. You do not need to fork the repository, install an app, or give the website a token. Requests usually take a short time to process; GitHub Actions and Pages can be delayed.
 
-ChrisCoin has no monetary value. There are no fees, expiration dates, mining, or additional owner minting. The starting balance is per account, not per human; multiple accounts each receive it.
+ChrisCoin has no monetary value. There are no fees, expiration dates, or mining. The starting balance is per account, not per human; multiple accounts each receive it.
+
+Transfers from `cdlewis` create new coins when accepted. That account's offers do not reserve or deduct its balance, and cancellations do not refund anything. The rule uses numeric GitHub ID `553949`, so a rename preserves the privilege and a different account using the login cannot gain it. Receipts from ordinary accounts remain normal funded transfers. Issued supply includes each starting balance and each accepted mint-account offer; amounts and total supply stay within the exact integer range supported by the website. This is a replay rule for the ledger, including existing entries; no special mint event or separate state is stored.
 
 ## Requests
 

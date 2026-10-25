@@ -352,3 +352,16 @@ func TestLegacyFrozenRecipientIsCheckedOnRetry(t *testing.T) {
 		t.Fatal("legacy frozen recipient bypassed current policy")
 	}
 }
+
+func TestMintAccountOfferFlowsThroughAuthenticatedWorker(t *testing.T) {
+	s := newFake()
+	issue := s.request(1, ledger.MintAccountID, ledger.Command{Action: "offer", Recipient: "Amanda", Amount: 500})
+	issue.User.Login = "cdlewis"
+	s.issues[1] = issue
+	process(t, s, issue)
+	process(t, s, s.request(2, 2, ledger.Command{Action: "accept", OfferID: "offer-1"}))
+	state := s.state(t)
+	if state.Issued != 700 || state.Accounts[ledger.MintAccountID].Available != 100 || state.Accounts[ledger.MintAccountID].Reserved != 0 || state.Accounts[2].Available != 600 {
+		t.Fatal("worker did not apply mint-account accounting")
+	}
+}
