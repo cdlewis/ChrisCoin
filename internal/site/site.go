@@ -2,6 +2,7 @@
 package site
 
 import (
+	"crypto/sha256"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cdlewis/ChrisCoin/internal/ledger"
+	"github.com/cdlewis/ChrisCoin/internal/social"
 )
 
 //go:embed layout.html assets/*
@@ -22,10 +24,12 @@ var files embed.FS
 
 type Options struct {
 	Output, Repository, BasePath, Commit string
+	SiteURL, ImageDirectory              string
 	Now                                  time.Time
 }
 type Page struct {
 	Kind, Title, Repository, BasePath, Commit, Updated, ClaimURL string
+	Description, CanonicalURL, ImageURL, ImageAlt                string
 	State                                                        *ledger.State
 	Accounts                                                     []*ledger.Account
 	Offers                                                       []*ledger.Offer
@@ -66,7 +70,22 @@ func Build(data []byte, options Options) error {
 	if options.Now.IsZero() {
 		options.Now = time.Now().UTC()
 	}
+	if options.ImageDirectory == "" {
+		options.ImageDirectory = "social/offers"
+	}
+	if options.SiteURL == "" {
+		owner := strings.Split(options.Repository, "/")[0]
+		options.SiteURL = "https://" + owner + ".github.io" + base
+	}
+	publicURL, err := url.Parse(options.SiteURL)
+	if err != nil || publicURL.Host == "" || (publicURL.Scheme != "https" && publicURL.Scheme != "http") || publicURL.RawQuery != "" || publicURL.Fragment != "" || publicURL.User != nil {
+		return fmt.Errorf("site URL must be an absolute HTTP(S) URL without a query or fragment")
+	}
+	// Pages can report an inherited custom domain as HTTP even when it redirects to HTTPS.
+	publicURL.Scheme = "https"
+	publicBase := strings.TrimRight(publicURL.String(), "/")
 	page := Page{Repository: options.Repository, BasePath: base, Commit: options.Commit, Updated: options.Now.UTC().Format("02 Jan 2006, 15:04 UTC"), State: state, ClaimURL: RequestURL(options.Repository, ledger.Command{Action: "claim"})}
+	page.Description = "ChrisCoin public ledger. Account balances, offers, and recorded transfers."
 	for _, account := range state.Accounts {
 		page.Accounts = append(page.Accounts, account)
 	}
@@ -140,6 +159,10 @@ func Build(data []byte, options Options) error {
 		return err
 	}
 	write := func(path string, page Page) error {
+		page.CanonicalURL = publicBase + "/"
+		if path != "" {
+			page.CanonicalURL = publicBase + "/" + path + "/"
+		}
 		target := filepath.Join(options.Output, path, "index.html")
 		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 			return err
@@ -168,6 +191,23 @@ func Build(data []byte, options Options) error {
 	for _, offer := range page.Offers {
 		p := page
 		p.Kind, p.Title, p.Offer = "offer", offer.ID+" · ChrisCoin", offer
+		data, err := social.ReadVerified(options.ImageDirectory, offer.Event)
+		if err != nil {
+			return err
+		}
+		imagePath := social.RelativePath(offer.Event.Source.Issue)
+		imageTarget := filepath.Join(options.Output, imagePath)
+		if err := os.MkdirAll(filepath.Dir(imageTarget), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(imageTarget, data, 0644); err != nil {
+			return err
+		}
+		digest := fmt.Sprintf("%x", sha256.Sum256(data))
+		p.Title = social.Caption(offer.Event) + " · ChrisCoin"
+		p.Description = social.Caption(offer.Event) + ". View the offer on ChrisCoin."
+		p.ImageAlt = social.Caption(offer.Event)
+		p.ImageURL = publicBase + "/" + imagePath + "?v=" + digest[:16]
 		if err := write("offers/"+offer.ID, p); err != nil {
 			return err
 		}

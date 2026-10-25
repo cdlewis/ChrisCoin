@@ -192,8 +192,21 @@ func (c *Client) FindPR(ctx context.Context, branch string) (*PullRequest, error
 	return nil, nil
 }
 
-// WriteBranch constructs a tree from current main with exactly one changed file.
-func (c *Client) WriteBranch(ctx context.Context, base, branch string, data []byte, message string) (string, error) {
+type LedgerUpdate struct {
+	Events     []byte
+	OfferPNG   []byte
+	OfferIssue int
+}
+
+// WriteBranch carries only the ledger and, for an offer, its generated PNG.
+// Paths are fixed here; issue content cannot supply arbitrary repository paths.
+func (c *Client) WriteBranch(ctx context.Context, base, branch string, update LedgerUpdate, message string) (string, error) {
+	if (len(update.OfferPNG) > 0) != (update.OfferIssue > 0) {
+		return "", fmt.Errorf("offer image and issue must be provided together")
+	}
+	if update.OfferIssue > 0 && branch != fmt.Sprintf("chriscoin/request-%d", update.OfferIssue) {
+		return "", fmt.Errorf("offer image does not belong to the request branch")
+	}
 	var commit struct {
 		Tree struct {
 			SHA string `json:"sha"`
@@ -202,13 +215,30 @@ func (c *Client) WriteBranch(ctx context.Context, base, branch string, data []by
 	if err := c.Do(ctx, "GET", "/git/commits/"+base, nil, &commit); err != nil {
 		return "", err
 	}
-	var blob, tree, next struct {
+	var tree, next struct {
 		SHA string `json:"sha"`
 	}
-	if err := c.Do(ctx, "POST", "/git/blobs", map[string]string{"content": base64.StdEncoding.EncodeToString(data), "encoding": "base64"}, &blob); err != nil {
-		return "", err
+	changes := []struct {
+		path string
+		data []byte
+	}{{"ledger/events.jsonl", update.Events}}
+	if update.OfferIssue > 0 {
+		changes = append(changes, struct {
+			path string
+			data []byte
+		}{fmt.Sprintf("social/offers/offer-%d.png", update.OfferIssue), update.OfferPNG})
 	}
-	if err := c.Do(ctx, "POST", "/git/trees", map[string]any{"base_tree": commit.Tree.SHA, "tree": []any{map[string]string{"path": "ledger/events.jsonl", "mode": "100644", "type": "blob", "sha": blob.SHA}}}, &tree); err != nil {
+	entries := []map[string]string{}
+	for _, change := range changes {
+		var blob struct {
+			SHA string `json:"sha"`
+		}
+		if err := c.Do(ctx, "POST", "/git/blobs", map[string]string{"content": base64.StdEncoding.EncodeToString(change.data), "encoding": "base64"}, &blob); err != nil {
+			return "", err
+		}
+		entries = append(entries, map[string]string{"path": change.path, "mode": "100644", "type": "blob", "sha": blob.SHA})
+	}
+	if err := c.Do(ctx, "POST", "/git/trees", map[string]any{"base_tree": commit.Tree.SHA, "tree": entries}, &tree); err != nil {
 		return "", err
 	}
 	if err := c.Do(ctx, "POST", "/git/commits", map[string]any{"message": message, "tree": tree.SHA, "parents": []string{base}}, &next); err != nil {

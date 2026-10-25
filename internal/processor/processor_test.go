@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	gh "github.com/cdlewis/ChrisCoin/internal/github"
 	"github.com/cdlewis/ChrisCoin/internal/ledger"
+	"github.com/cdlewis/ChrisCoin/internal/social"
 )
 
 const repo = "test/coin"
@@ -22,6 +24,8 @@ type fakeStore struct {
 	issues                                             map[int]gh.Issue
 	comments                                           map[int][]gh.Comment
 	branches                                           map[string][]byte
+	images                                             map[string][]byte
+	branchImages                                       map[string]map[string][]byte
 	prs                                                map[string]*gh.PullRequest
 	merges                                             int
 	failCreate, failMerge, failAfterMerge, failComment bool
@@ -29,7 +33,7 @@ type fakeStore struct {
 }
 
 func newFake() *fakeStore {
-	return &fakeStore{issues: map[int]gh.Issue{}, comments: map[int][]gh.Comment{}, branches: map[string][]byte{}, prs: map[string]*gh.PullRequest{}}
+	return &fakeStore{issues: map[int]gh.Issue{}, comments: map[int][]gh.Comment{}, branches: map[string][]byte{}, prs: map[string]*gh.PullRequest{}, images: map[string][]byte{}, branchImages: map[string]map[string][]byte{}}
 }
 func (s *fakeStore) worker() *Processor {
 	return &Processor{Store: s, Repository: repo, Now: func() time.Time { return now }}
@@ -81,11 +85,19 @@ func (s *fakeStore) File(_ context.Context, _ string, ref string) ([]byte, error
 func (s *fakeStore) FindPR(_ context.Context, branch string) (*gh.PullRequest, error) {
 	return s.prs[branch], nil
 }
-func (s *fakeStore) WriteBranch(_ context.Context, base, branch string, data []byte, _ string) (string, error) {
+func (s *fakeStore) WriteBranch(_ context.Context, base, branch string, update gh.LedgerUpdate, _ string) (string, error) {
 	if base != fmt.Sprintf("main-%d", s.revision) {
 		return "", fmt.Errorf("stale base")
 	}
-	s.branches[branch] = append([]byte{}, data...)
+	s.branches[branch] = append([]byte{}, update.Events...)
+	images := map[string][]byte{}
+	for path, data := range s.images {
+		images[path] = append([]byte{}, data...)
+	}
+	if update.OfferIssue > 0 {
+		images[social.RelativePath(update.OfferIssue)] = append([]byte{}, update.OfferPNG...)
+	}
+	s.branchImages[branch] = images
 	return branch, nil
 }
 func (s *fakeStore) CreatePR(_ context.Context, branch, _, _ string) (*gh.PullRequest, error) {
@@ -116,6 +128,7 @@ func (s *fakeStore) Merge(_ context.Context, n int, sha string) error {
 		return fmt.Errorf("merge interrupted")
 	}
 	s.main = append([]byte{}, s.branches[sha]...)
+	s.images = s.branchImages[sha]
 	s.revision++
 	s.merges++
 	for _, pr := range s.prs {
@@ -363,5 +376,35 @@ func TestMintAccountOfferFlowsThroughAuthenticatedWorker(t *testing.T) {
 	state := s.state(t)
 	if state.Issued != 700 || state.Accounts[ledger.MintAccountID].Available != 100 || state.Accounts[ledger.MintAccountID].Reserved != 0 || state.Accounts[2].Available != 600 {
 		t.Fatal("worker did not apply mint-account accounting")
+	}
+}
+
+func TestOfferImageIsCommittedWithLedgerAndReusedOnRetry(t *testing.T) {
+	s := newFake()
+	issue := s.request(1, 1, ledger.Command{Action: "offer", Recipient: "Amanda", Amount: 25})
+	s.failMerge = true
+	if _, err := s.worker().Process(ctx, issue); err == nil {
+		t.Fatal("expected interrupted merge")
+	}
+	path := social.RelativePath(1)
+	frozen := append([]byte{}, s.branchImages["chriscoin/request-1"][path]...)
+	if len(s.images) != 0 || len(s.main) != 0 || len(frozen) == 0 {
+		t.Fatal("image and ledger did not remain pending together")
+	}
+	process(t, s, issue)
+	if !bytes.Equal(s.images[path], frozen) {
+		t.Fatal("retry changed or lost the generated offer image")
+	}
+	state := s.state(t)
+	expected, err := social.Render(state.Events[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(s.images[path], expected) {
+		t.Fatal("committed image does not match the final event")
+	}
+	process(t, s, s.request(2, 2, ledger.Command{Action: "accept", OfferID: "offer-1"}))
+	if len(s.images) != 1 || !bytes.Equal(s.images[path], frozen) {
+		t.Fatal("settlement rewrote or duplicated the offer image")
 	}
 }

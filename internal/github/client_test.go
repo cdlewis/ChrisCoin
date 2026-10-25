@@ -73,12 +73,70 @@ func TestWriteBranchChangesOnlyLedgerAndChecksBase(t *testing.T) {
 			w.WriteHeader(404)
 		}
 	})
-	sha, err := client.WriteBranch(context.Background(), "base", "chriscoin/request-1", []byte("ledger contents\n"), "message")
+	sha, err := client.WriteBranch(context.Background(), "base", "chriscoin/request-1", LedgerUpdate{Events: []byte("ledger contents\n")}, "message")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if sha != "next" || len(steps) != 6 {
 		t.Fatalf("unexpected branch creation: %s %v", sha, steps)
+	}
+}
+
+func TestOfferImageAndLedgerUseOneCommitWithFixedPaths(t *testing.T) {
+	blobs := [][]byte{}
+	entries := []map[string]string{}
+	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/repos/test/coin")
+		var body map[string]any
+		if r.Method != "GET" {
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+		}
+		switch path {
+		case "/git/commits/base":
+			fmt.Fprint(w, `{"tree":{"sha":"base-tree"}}`)
+		case "/git/blobs":
+			data, err := base64.StdEncoding.DecodeString(body["content"].(string))
+			if err != nil {
+				t.Fatal(err)
+			}
+			blobs = append(blobs, data)
+			fmt.Fprintf(w, `{"sha":"blob-%d"}`, len(blobs))
+		case "/git/trees":
+			for _, entry := range body["tree"].([]any) {
+				e := entry.(map[string]any)
+				entries = append(entries, map[string]string{"path": e["path"].(string), "sha": e["sha"].(string)})
+			}
+			fmt.Fprint(w, `{"sha":"combined-tree"}`)
+		case "/git/commits":
+			if body["tree"] != "combined-tree" {
+				t.Fatal("ledger and image were not committed together")
+			}
+			fmt.Fprint(w, `{"sha":"next"}`)
+		case "/git/refs/heads/chriscoin/request-7":
+			fmt.Fprint(w, `{}`)
+		default:
+			t.Errorf("unexpected path %s", path)
+			w.WriteHeader(404)
+		}
+	})
+	png := []byte{137, 80, 78, 71, 0, 255}
+	_, err := client.WriteBranch(context.Background(), "base", "chriscoin/request-7", LedgerUpdate{Events: []byte("ledger\n"), OfferPNG: png, OfferIssue: 7}, "offer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blobs) != 2 || string(blobs[0]) != "ledger\n" || !reflect.DeepEqual(blobs[1], png) {
+		t.Fatal("binary image or ledger was altered in transport")
+	}
+	if !reflect.DeepEqual(entries, []map[string]string{{"path": "ledger/events.jsonl", "sha": "blob-1"}, {"path": "social/offers/offer-7.png", "sha": "blob-2"}}) {
+		t.Fatalf("unexpected changes: %v", entries)
+	}
+	if _, err := client.WriteBranch(context.Background(), "base", "chriscoin/request-7", LedgerUpdate{OfferPNG: png, OfferIssue: 8}, "bad"); err == nil {
+		t.Fatal("accepted an image for another request")
+	}
+	if _, err := client.WriteBranch(context.Background(), "base", "chriscoin/request-7", LedgerUpdate{OfferPNG: png}, "bad"); err == nil {
+		t.Fatal("accepted an image with no issue")
 	}
 }
 

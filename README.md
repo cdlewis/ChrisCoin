@@ -41,12 +41,13 @@ An issue is a request, not a ledger entry. Coins change only after the bot's PR 
 
 ## Implementation
 
-All backend logic is Go. Name moderation uses the pinned [go-away](https://github.com/TwiN/go-away) library; the remaining application logic uses the standard library:
+All backend logic is Go. Name moderation uses the pinned [go-away](https://github.com/TwiN/go-away) library, and social cards use the Go image/font packages. No browser, external image service, or runtime font download is required:
 
 - `internal/ledger`: strict command parsing, append-only events, deterministic replay, and accounting.
 - `internal/processor`: authenticated request validation, checkpointing, PR creation and merging, and recovery.
 - `internal/github`: repository-scoped REST API client.
 - `internal/site`: Go HTML templates and plain CSS/JavaScript. The browser only filters accounts and prepares GitHub request URLs.
+- `internal/social`: deterministic 1200×630 PNG cards with the sender, recipient, and amount, using embedded Go fonts and a retro starfield design.
 
 The interface uses a GeoCities-era design: tiled stars, rainbow headings, beveled panels, and web badges. Labels stay factual. Fonts are system fonts; decorative assets are local SVG/CSS. Animations respect reduced-motion preferences. The footer counter reports actual ledger entries, not fabricated visitor counts.
 
@@ -56,7 +57,7 @@ New recipient names and authenticated GitHub usernames must be 1–10 ASCII lett
 
 Name policy is checked when admitting new entries, including frozen requests awaiting a retry. Existing ledger records retain their original validation and accounting rules so a stricter limit or a later dictionary change cannot break replay or alter history. The filter is dictionary-based and primarily English; it can have false positives and miss unsupported terms.
 
-The worker runs with one repository-wide concurrency lock, validates against current `main`, and rewrites its own deterministic branch with only the ledger change before merging its exact head SHA. A request ID can appear only once. The first successful merge determines the winner of competing accept/cancel requests; submission order is not guaranteed. A five-minute scheduled recovery scans open requests because Actions can coalesce pending runs or interrupt execution. Schedules are best-effort and may be delayed; GitHub can disable schedules after 60 days of public-repository inactivity. Manually run the ledger workflow to recover.
+The worker runs with one repository-wide concurrency lock, validates against current `main`, and rewrites its own deterministic branch with only the ledger change and its offer PNG before merging its exact head SHA. A request ID can appear only once. The first successful merge determines the winner of competing accept/cancel requests; submission order is not guaranteed. A five-minute scheduled recovery scans open requests because Actions can coalesce pending runs or interrupt execution. Schedules are best-effort and may be delayed; GitHub can disable schedules after 60 days of public-repository inactivity. Manually run the ledger workflow to recover.
 
 Idle recovery runs skip deployment. A failed worker still attempts to publish current `main` in case a merge succeeded before the failure. If Pages publication itself fails, rerun the workflow or dispatch it manually to retry.
 
@@ -64,7 +65,21 @@ Internal page and asset links include the published commit as a cache key. While
 
 Only trusted `main` code runs with write permissions. Fork PR code is never executed by the worker; the independent PR CI has a read-only token. GitHub request data is never interpolated into shell commands. Administrators and other trusted repository writers can change code or history; this is not a decentralized or tamper-proof financial system. Keep ordinary participants at public read access.
 
-Ledger-only PRs are validated by the worker and skip separate PR CI, which GitHub otherwise puts behind approval for bot-created PRs. Code PRs run the full test suite; PRs that change code and ledger data also check the append-only ledger prefix.
+Ledger/offer-image PRs are validated by the worker and skip separate PR CI, which GitHub otherwise puts behind approval for bot-created PRs. Code PRs run the full test suite; PRs that change code and ledger data also check the append-only ledger prefix.
+
+## Offer sharing images
+
+An offer PR commits `social/offers/offer-<issue>.png` in the same Git commit as its ledger entry. The card uses immutable offer fields, so retries are byte-for-byte reproducible and acceptance/cancellation does not rewrite it. A static offer page serves Open Graph and Twitter large-image metadata with an absolute HTTPS URL, image dimensions, alt text, and a content-hash cache key. The site also provides a direct share-image link.
+
+`SITE_URL` / `--site-url` sets the absolute public site URL including its base path; the Pages workflow derives it from `configure-pages`, including inherited custom domains. Without it, local builds default to the repository's GitHub Pages URL.
+
+Both validation and site builds verify that committed PNGs match the ledger and renderer. To backfill an older offer or update the card design/font dependencies, regenerate the assets and commit them with the change:
+
+```sh
+go run ./cmd/chriscoin generate-images
+```
+
+Use `--images-dir` for an alternate source directory. The existing ledger is never edited by image generation.
 
 ## Local development
 

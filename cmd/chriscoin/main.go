@@ -17,6 +17,7 @@ import (
 	"github.com/cdlewis/ChrisCoin/internal/ledger"
 	"github.com/cdlewis/ChrisCoin/internal/processor"
 	"github.com/cdlewis/ChrisCoin/internal/site"
+	"github.com/cdlewis/ChrisCoin/internal/social"
 )
 
 func main() {
@@ -27,7 +28,7 @@ func main() {
 }
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: chriscoin {validate|build|process}")
+		return errors.New("usage: chriscoin {validate|build|process|generate-images}")
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ContinueOnError)
 	repoDefault := os.Getenv("GITHUB_REPOSITORY")
@@ -41,6 +42,8 @@ func run() error {
 	commit := flags.String("commit", "", "published Git commit SHA")
 	baseRef := flags.String("base-ref", "", "validate append-only changes against a Git ref")
 	issue := flags.Int("issue", 0, "request issue to process first")
+	imageDirectory := flags.String("images-dir", "social/offers", "committed offer image directory")
+	siteURL := flags.String("site-url", os.Getenv("SITE_URL"), "absolute public site URL, including its base path")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -51,7 +54,7 @@ func run() error {
 		return errors.New("invalid repository name")
 	}
 	switch os.Args[1] {
-	case "validate", "build":
+	case "validate", "build", "generate-images":
 		data, err := os.ReadFile(*input)
 		if err != nil {
 			return err
@@ -64,7 +67,13 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		if os.Args[1] == "generate-images" {
+			return social.Generate(events, *imageDirectory)
+		}
 		if os.Args[1] == "validate" {
+			if err := social.Verify(events, *imageDirectory); err != nil {
+				return err
+			}
 			if *baseRef != "" {
 				base, err := exec.Command("git", "show", *baseRef+":"+*input).Output()
 				if err != nil {
@@ -82,7 +91,7 @@ func run() error {
 				*commit = strings.TrimSpace(string(data))
 			}
 		}
-		return site.Build(data, site.Options{Output: *output, Repository: *repository, BasePath: *basePath, Commit: *commit})
+		return site.Build(data, site.Options{Output: *output, Repository: *repository, BasePath: *basePath, Commit: *commit, SiteURL: *siteURL, ImageDirectory: *imageDirectory})
 	case "process":
 		token := os.Getenv("GITHUB_TOKEN")
 		if token == "" {
@@ -120,6 +129,6 @@ func run() error {
 		log.Printf("Ledger changed: %t", changed)
 		return err
 	default:
-		return errors.New("unknown command; use validate, build, or process")
+		return errors.New("unknown command; use validate, build, process, or generate-images")
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cdlewis/ChrisCoin/internal/ledger"
+	"github.com/cdlewis/ChrisCoin/internal/social"
 )
 
 func fixture(t *testing.T) []byte {
@@ -41,11 +42,20 @@ func TestBuildPagesAndEscapeUserContent(t *testing.T) {
 	for _, base := range []string{"/ChrisCoin", ""} {
 		t.Run(base, func(t *testing.T) {
 			dir := t.TempDir()
-			err := Build(fixture(t), Options{Output: dir, Repository: "test/coin", BasePath: base, Commit: strings.Repeat("a", 40)})
+			data := fixture(t)
+			events, err := ledger.Parse(data)
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, path := range []string{"index.html", "users/1/index.html", "users/2/index.html", "offers/offer-2/index.html", "offers/offer-4/index.html", "assets/app.js", "assets/style.css", "assets/stars.svg", "data/state.json", "data/events.jsonl"} {
+			images := t.TempDir()
+			if err := social.Generate(events, images); err != nil {
+				t.Fatal(err)
+			}
+			err = Build(data, Options{Output: dir, Repository: "test/coin", BasePath: base, Commit: strings.Repeat("a", 40), ImageDirectory: images, SiteURL: "https://example.com" + base})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range []string{"index.html", "users/1/index.html", "users/2/index.html", "offers/offer-2/index.html", "offers/offer-4/index.html", "assets/app.js", "assets/style.css", "assets/stars.svg", "data/state.json", "data/events.jsonl", "social/offers/offer-2.png", "social/offers/offer-4.png"} {
 				if _, err := os.Stat(filepath.Join(dir, path)); err != nil {
 					t.Fatal(err)
 				}
@@ -94,6 +104,9 @@ func TestBuildPagesAndEscapeUserContent(t *testing.T) {
 				}
 			}
 			offer, _ := os.ReadFile(filepath.Join(dir, "offers/offer-2/index.html"))
+			if !strings.Contains(string(offer), `property="og:image"`) || !strings.Contains(string(offer), "https://example.com"+base+"/social/offers/offer-2.png?v=") || !strings.Contains(string(offer), `content="summary_large_image"`) {
+				t.Fatal("missing absolute social preview metadata")
+			}
 			if strings.Contains(string(offer), `<script>alert`) || !strings.Contains(string(offer), "&lt;script&gt;") {
 				t.Fatal("recipient HTML was not escaped")
 			}
@@ -108,7 +121,7 @@ func TestBuildPagesAndEscapeUserContent(t *testing.T) {
 				Issued int64  `json:"issued"`
 				Commit string `json:"commit"`
 			}
-			data, _ := os.ReadFile(filepath.Join(dir, "data/state.json"))
+			data, _ = os.ReadFile(filepath.Join(dir, "data/state.json"))
 			if err := json.Unmarshal(data, &state); err != nil {
 				t.Fatal(err)
 			}

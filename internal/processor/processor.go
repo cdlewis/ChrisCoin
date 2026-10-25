@@ -12,6 +12,7 @@ import (
 
 	gh "github.com/cdlewis/ChrisCoin/internal/github"
 	"github.com/cdlewis/ChrisCoin/internal/ledger"
+	"github.com/cdlewis/ChrisCoin/internal/social"
 )
 
 const LedgerPath = "ledger/events.jsonl"
@@ -26,7 +27,7 @@ type Store interface {
 	Main(context.Context) (string, error)
 	File(context.Context, string, string) ([]byte, error)
 	FindPR(context.Context, string) (*gh.PullRequest, error)
-	WriteBranch(context.Context, string, string, []byte, string) (string, error)
+	WriteBranch(context.Context, string, string, gh.LedgerUpdate, string) (string, error)
 	CreatePR(context.Context, string, string, string) (*gh.PullRequest, error)
 	ClosePR(context.Context, int) error
 	Merge(context.Context, int, string) error
@@ -229,7 +230,15 @@ func (p *Processor) Process(ctx context.Context, issue gh.Issue) (bool, error) {
 		return p.reject(ctx, issue, pr, err)
 	}
 	title := fmt.Sprintf("ChrisCoin: %s by @%s (request #%d)", event.Type, actor.Login, issue.Number)
-	sha, err := p.Store.WriteBranch(ctx, base, branch, ledger.Serialize(append(events, event)), title)
+	update := gh.LedgerUpdate{Events: ledger.Serialize(append(events, event))}
+	if event.Type == "offer" {
+		update.OfferPNG, err = social.Render(event)
+		if err != nil {
+			return false, err
+		}
+		update.OfferIssue = event.Source.Issue
+	}
+	sha, err := p.Store.WriteBranch(ctx, base, branch, update, title)
 	if err != nil {
 		return false, err
 	}
@@ -239,7 +248,7 @@ func (p *Processor) Process(ctx context.Context, issue gh.Issue) (bool, error) {
 			return false, err
 		}
 	}
-	// Refresh against main before the final write; only the ledger file is carried forward.
+	// Refresh against main, carrying only the ledger and this request's offer image.
 	base, events, err = p.load(ctx)
 	if err != nil {
 		return false, err
@@ -248,7 +257,8 @@ func (p *Processor) Process(ctx context.Context, issue gh.Issue) (bool, error) {
 	if err != nil {
 		return p.reject(ctx, issue, pr, err)
 	}
-	sha, err = p.Store.WriteBranch(ctx, base, branch, ledger.Serialize(append(events, event)), title)
+	update.Events = ledger.Serialize(append(events, event))
+	sha, err = p.Store.WriteBranch(ctx, base, branch, update, title)
 	if err != nil {
 		return false, err
 	}

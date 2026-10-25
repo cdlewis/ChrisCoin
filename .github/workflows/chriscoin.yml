@@ -71,6 +71,7 @@ jobs:
       - name: Validate and build the current canonical ledger
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
         run: |
           go run ./cmd/chriscoin validate
           go run ./cmd/chriscoin build --base-path "$BASE_PATH"
