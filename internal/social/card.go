@@ -13,10 +13,10 @@ import (
 	"strconv"
 
 	"github.com/cdlewis/ChrisCoin/internal/ledger"
+	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/gomono"
-	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -38,8 +38,7 @@ func Caption(event ledger.Event) string {
 
 type painter struct {
 	img        *image.RGBA
-	bold, mono *opentype.Font
-	err        error
+	bold, mono *truetype.Font
 }
 
 func rgba(r, g, b uint8) color.RGBA { return color.RGBA{r, g, b, 255} }
@@ -53,20 +52,14 @@ func (p *painter) outline(x, y, w, h, thickness int, c color.Color) {
 	p.rect(x+w-thickness, y, thickness, h, c)
 }
 func (p *painter) face(mono bool, size float64) font.Face {
-	if p.err != nil {
-		return nil
-	}
 	resource := p.bold
 	if mono {
 		resource = p.mono
 	}
-	face, err := opentype.NewFace(resource, &opentype.FaceOptions{Size: size, DPI: 72, Hinting: font.HintingNone})
-	if err != nil {
-		p.err = err
-		return nil
-	}
-	return face
+	// This rasterizer uses fixed-point arithmetic for reproducible glyph edges.
+	return truetype.NewFace(resource, &truetype.Options{Size: size, DPI: 72, Hinting: font.HintingNone, SubPixelsX: 64, SubPixelsY: 64})
 }
+
 func (p *painter) text(s string, x, y int, size float64, mono bool, c color.Color) {
 	face := p.face(mono, size)
 	if face == nil {
@@ -121,11 +114,11 @@ func Render(event ledger.Event) ([]byte, error) {
 	if event.Type != "offer" || event.Source.Command.Action != "offer" || event.Source.Issue <= 0 || event.Source.Command.Amount <= 0 || event.Source.Command.Amount > ledger.MaxCoins {
 		return nil, fmt.Errorf("social images require a valid offer")
 	}
-	bold, err := opentype.Parse(gobold.TTF)
+	bold, err := truetype.Parse(gobold.TTF)
 	if err != nil {
 		return nil, err
 	}
-	mono, err := opentype.Parse(gomono.TTF)
+	mono, err := truetype.Parse(gomono.TTF)
 	if err != nil {
 		return nil, err
 	}
@@ -190,9 +183,6 @@ func Render(event ledger.Event) ([]byte, error) {
 	}
 	p.text("TRANSFER BY PULL REQUEST", 64, 561, 13, true, rgba(170, 168, 207))
 	p.text("CHRISCOIN", 1027, 561, 16, true, gold)
-	if p.err != nil {
-		return nil, p.err
-	}
 	var out bytes.Buffer
 	encoder := png.Encoder{CompressionLevel: png.BestCompression}
 	if err := encoder.Encode(&out, p.img); err != nil {

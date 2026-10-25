@@ -69,7 +69,7 @@ Ledger/offer-image PRs are validated by the worker and skip separate PR CI, whic
 
 ## Offer sharing images
 
-An offer PR commits `social/offers/offer-<issue>.png` in the same Git commit as its ledger entry. The card uses immutable offer fields, so retries are byte-for-byte reproducible and acceptance/cancellation does not rewrite it. A static offer page serves Open Graph and Twitter large-image metadata with an absolute HTTPS URL, image dimensions, alt text, and a content-hash cache key. The site also provides a direct share-image link.
+An offer PR commits `social/offers/offer-<issue>.png` in the same Git commit as its ledger entry. The card uses immutable offer fields, integer color gradients, and fixed-point glyph rasterization, so ARM64 and AMD64 produce identical PNG bytes. Retries are reproducible and acceptance/cancellation does not rewrite the image. A static offer page serves Open Graph and Twitter large-image metadata with an absolute HTTPS URL, image dimensions, alt text, and a content-hash cache key. The site also provides a direct share-image link.
 
 `SITE_URL` / `--site-url` sets the absolute public site URL including its base path; the Pages workflow derives it from `configure-pages`, including inherited custom domains. Without it, local builds default to the repository's GitHub Pages URL.
 
