@@ -1,0 +1,1 @@
+{"version":1,"sequence":1,"id":"issue-1","type":"allowance","actor":{"id":553949,"login":"cdlewis"},"source":{"issue":1,"url":"https://github.com/cdlewis/ChrisCoin/issues/1","bodySha256":"fb97cc73ff3bb77a9d50ffab8d9c175287d84159399876d002f3f0d9256b8be7","createdAt":"2026-10-25T03:24:16Z","command":{"action":"claim"}},"timestamp":"2026-10-25T03:25:39.390914586Z","pullRequest":2}
