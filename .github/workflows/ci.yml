@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+    # Ledger-only PRs are checked by the trusted worker, avoiding approval-gated bot CI.
+    paths-ignore:
+      - ledger/events.jsonl
 
 permissions:
   contents: read

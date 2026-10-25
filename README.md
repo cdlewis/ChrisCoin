@@ -2,7 +2,7 @@
 
 Money, by pull request. A silly currency whose ledger lives in Git.
 
-**[Open ChrisCoin](https://cdlewis.github.io/ChrisCoin/)** · [Public ledger](ledger/events.jsonl)
+**[Open ChrisCoin](https://chrislewis.au/ChrisCoin/index.html)** · [Public ledger](ledger/events.jsonl)
 
 ## How it works
 
@@ -55,6 +55,8 @@ Idle recovery runs skip deployment. A failed worker still attempts to publish cu
 Internal page and asset links include the published commit as a cache key. While visible, the browser checks the Go-generated JSON snapshot once per minute and on return to the tab, navigating to the latest version if necessary. This keeps balances fresh behind custom-domain caches. A pre-deployment cached 404 must expire or be bypassed with a versioned homepage URL; the app cannot execute inside an intermediary's cached error page.
 
 Only trusted `main` code runs with write permissions. Fork PR code is never executed by the worker; the independent PR CI has a read-only token. GitHub request data is never interpolated into shell commands. Administrators and other trusted repository writers can change code or history; this is not a decentralized or tamper-proof financial system. Keep ordinary participants at public read access.
+
+Ledger-only PRs are validated by the worker and skip separate PR CI, which GitHub otherwise puts behind approval for bot-created PRs. Code PRs run the full test suite; PRs that change code and ledger data also check the append-only ledger prefix.
 
 ## Local development
 
