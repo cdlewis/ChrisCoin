@@ -119,7 +119,7 @@ func Build(data []byte, options Options) error {
 		"description": func(e ledger.Event) string {
 			switch e.Type {
 			case "allowance":
-				return "claimed 100 ChrisCoin"
+				return "opened an account with 100 CC"
 			case "offer":
 				return fmt.Sprintf("offered %d to %s", e.Source.Command.Amount, e.Source.Command.Recipient)
 			case "accept":

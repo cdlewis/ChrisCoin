@@ -157,7 +157,7 @@ func TestCompetingAcceptancesFirstProcessedWins(t *testing.T) {
 	process(t, s, later)
 	process(t, s, early)
 	state := s.state(t)
-	if state.Offers["offer-2"].AcceptedBy != 3 || state.Accounts[3].Available != 60 || len(state.Events) != 3 {
+	if state.Offers["offer-2"].AcceptedBy != 3 || state.Accounts[3].Available != 160 || state.Issued != 200 || len(state.Events) != 3 {
 		t.Fatal("first processed claim did not win")
 	}
 	if s.issues[3].State != "closed" || !strings.Contains(s.comments[3][0].Body, "already been accepted") {

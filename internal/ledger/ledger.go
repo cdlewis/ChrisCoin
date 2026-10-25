@@ -51,7 +51,6 @@ type Account struct {
 	Actor
 	Available int64 `json:"available"`
 	Reserved  int64 `json:"reserved"`
-	Claimed   bool  `json:"claimed"`
 }
 
 type Offer struct {
@@ -172,7 +171,7 @@ func ParseRequest(body string) (Command, error) {
 
 func RequestBody(command Command) string {
 	data, _ := json.MarshalIndent(command, "", "  ")
-	return "```chriscoin\n" + string(data) + "\n```\n\nRecipient labels are decorative. Anyone can accept an open offer.\n"
+	return "```chriscoin\n" + string(data) + "\n```\n"
 }
 
 func Parse(data []byte) ([]Event, error) {
@@ -236,22 +235,23 @@ func Replay(events []Event) (*State, error) {
 			return nil, errors.New("event type does not match its command")
 		}
 		account := state.Accounts[e.Actor.ID]
-		if account == nil {
-			account = &Account{Actor: e.Actor}
+		firstAppearance := account == nil
+		if firstAppearance {
+			if state.Issued > MaxCoins-Allowance {
+				return nil, errors.New("maximum coin supply reached")
+			}
+			account = &Account{Actor: e.Actor, Available: Allowance}
 			state.Accounts[e.Actor.ID] = account
+			state.Issued += Allowance
 		}
 		account.Login = e.Actor.Login
 		switch c.Action {
 		case "claim":
-			if account.Claimed {
-				return nil, errors.New("this GitHub account has already claimed its allowance")
+			// This is just an onboarding entry. Every first valid action already
+			// receives the starting balance; account presence is the only check.
+			if !firstAppearance {
+				return nil, errors.New("this GitHub ID already has an account and its starting balance")
 			}
-			if state.Issued > MaxCoins-Allowance {
-				return nil, errors.New("maximum coin supply reached")
-			}
-			account.Claimed = true
-			account.Available += Allowance
-			state.Issued += Allowance
 		case "offer":
 			if account.Available < c.Amount {
 				return nil, errors.New("not enough available ChrisCoin")

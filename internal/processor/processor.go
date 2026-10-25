@@ -132,8 +132,9 @@ func (p *Processor) reject(ctx context.Context, issue gh.Issue, pr *gh.PullReque
 			return false, err
 		}
 	}
-	// Quote error text as code so user-provided field names cannot ping people.
-	message := "Request rejected: " + strings.ReplaceAll(reason.Error(), "`", "'") + ".\n\nSubmit a new request to try again."
+	// JSON decoder errors can contain user-provided field names. Do not send mentions.
+	reasonText := strings.ReplaceAll(strings.ReplaceAll(reason.Error(), "`", "'"), "@", "@\u200b")
+	message := "Request rejected: " + reasonText + ".\n\nSubmit a new request to try again."
 	log.Printf("Rejected request #%d: %v", issue.Number, reason)
 	return false, p.finish(ctx, issue, "rejected", message)
 }

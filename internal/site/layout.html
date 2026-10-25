@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#fdfcf9" />
+    <meta name="theme-color" content="#000033" />
     <meta
       name="description"
       content="ChrisCoin public ledger. View account balances, create offers, and record transfers through GitHub."
@@ -11,7 +11,7 @@
     <title>{{.Title}}</title>
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M4 4L36 3L37 36L3 37Z' fill='%23fdfcf9' stroke='%23262626' stroke-width='2'/%3E%3Ctext x='20' y='29' text-anchor='middle' font-family='monospace' font-size='26'%3EC%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='18' fill='%23ffff00' stroke='%23ff8800' stroke-width='3'/%3E%3Ctext x='20' y='30' text-anchor='middle' font-family='serif' font-weight='bold' font-size='30' fill='%23000080'%3EC%3C/text%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="{{assetURL `style.css`}}" />
     <script defer src="{{assetURL `app.js`}}"></script>
@@ -23,11 +23,32 @@
   >
     <a class="skip" href="#main">Skip to content</a>
     <header class="topbar wrap">
-      <a class="brand" href="{{homeURL}}">ChrisCoin</a>
+      <p class="web-kicker">★ WORLD WIDE ACCOUNTING NETWORK ★</p>
+      <div class="masthead">
+        <span class="spinning-coin" aria-hidden="true">C</span
+        ><a class="brand" href="{{homeURL}}">ChrisCoin</a
+        ><span class="spinning-coin reverse" aria-hidden="true">C</span>
+      </div>
+      <p class="site-subtitle">
+        OFFICIAL PUBLIC LEDGER
+        <span class="blink" aria-hidden="true">◆</span> EST. 2026
+      </p>
       <nav aria-label="Main navigation">
-        <a href="{{homeURL}}#accounts">Ledger</a
+        <a href="{{homeURL}}">Home</a><span aria-hidden="true">|</span
+        ><a href="{{homeURL}}#accounts">Accounts</a
+        ><span aria-hidden="true">|</span><a href="{{homeURL}}#offers">Offers</a
+        ><span aria-hidden="true">|</span><a href="{{homeURL}}#send">Send CC</a
+        ><span aria-hidden="true">|</span
         ><a href="https://github.com/{{.Repository}}">GitHub ↗</a>
       </nav>
+      <div class="ticker" aria-label="Ledger information">
+        <div class="ticker-track">
+          <span
+            >◆ ACCOUNT BALANCES ◆ OPEN OFFERS ◆ TRANSFERS RECORDED IN GIT ◆ NEW
+            ACCOUNTS START WITH 100 CC ◆</span
+          >
+        </div>
+      </div>
     </header>
     <main id="main" class="wrap">
       {{if eq .Kind "home"}}
@@ -97,10 +118,6 @@
           </section>
           <section id="offers" class="section">
             <h2>Open offers</h2>
-            <p class="note">
-              Recipient labels do not restrict ownership. Anyone can accept an
-              open offer.
-            </p>
             <div class="offer-list">
               {{$open := false}}{{range .Offers}}{{if eq .Status "open"}}{{$open
               = true}}{{template "offer-card" .}}{{end}}{{end}} {{if not $open}}
@@ -113,7 +130,7 @@
           <section id="send" class="request-panel">
             <h2>Create an offer</h2>
             <form id="send-form">
-              <label for="recipient">Recipient label</label>
+              <label for="recipient">Recipient</label>
               <input
                 id="recipient"
                 name="recipient"
@@ -121,7 +138,6 @@
                 required
                 maxlength="100"
               />
-              <p class="field-note">Decorative only. Anyone may accept.</p>
               <label for="amount">Amount</label>
               <div class="amount-input">
                 <input
@@ -156,8 +172,8 @@
           </section>
           <section class="allowance-panel">
             <h2>Starting allowance</h2>
-            <p class="note">Each GitHub account can claim 100 CC once.</p>
-            <a class="button" href="{{.ClaimURL}}">Claim 100 CC ↗</a>
+            <p class="note">New accounts start with 100 CC.</p>
+            <a class="button" href="{{.ClaimURL}}">Get 100 CC ↗</a>
           </section>
         </aside>
       </div>
@@ -180,10 +196,8 @@
           <dd>{{coins .Account.Reserved}} <small>CC</small></dd>
         </div>
         <div>
-          <dt>Allowance</dt>
-          <dd class="status-word">
-            {{if .Account.Claimed}}Claimed{{else}}Unclaimed{{end}}
-          </dd>
+          <dt>Starting balance</dt>
+          <dd>100 <small>CC</small></dd>
         </div>
       </dl>
       <section class="section">
@@ -213,14 +227,11 @@
             </dd>
           </div>
           <div>
-            <dt>Recipient label</dt>
+            <dt>Recipient</dt>
             <dd>{{.Offer.RecipientLabel}}</dd>
           </div>
         </dl>
         {{if eq .Offer.Status "open"}}
-        <p class="note">
-          The recipient label is decorative. Anyone can accept this offer.
-        </p>
         <div class="offer-actions">
           <a class="button" href="{{acceptURL .Offer.ID}}"
             >Accept on GitHub ↗</a
@@ -288,13 +299,25 @@
       {{end}}
     </main>
     <footer class="footer wrap">
+      <div class="counter-block">
+        <label for="ledger-counter">LEDGER ENTRIES</label
+        ><output id="ledger-counter" class="hit-counter"
+          >{{printf "%06d" (len .State.Events)}}</output
+        >
+      </div>
+      <div class="web-badges" aria-label="Site information">
+        <span class="web-badge git-badge">GIT<br /><b>POWERED</b></span
+        ><span class="web-badge html-badge">HTML<br /><b>ENABLED</b></span
+        ><span class="web-badge pages-badge"
+          >HOSTED ON<br /><b>GITHUB PAGES</b></span
+        >
+      </div>
       <p>
         Updated {{.Updated}}{{if .Commit}} ·
         <a href="https://github.com/{{.Repository}}/commit/{{.Commit}}"
           >{{short .Commit}}</a
         >{{end}} · <a href="{{.BasePath}}/data/state.json">JSON</a>
       </p>
-      <p>ChrisCoin has no monetary value.</p>
     </footer>
   </body>
 </html>

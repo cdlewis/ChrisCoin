@@ -48,7 +48,7 @@ func TestAllowanceOfferAcceptanceAndConservation(t *testing.T) {
 	events = add(t, events, bob, Command{Action: "accept", OfferID: "offer-2"})
 	requireFailure(t, events, Actor{ID: 3, Login: "amanda"}, Command{Action: "accept", OfferID: "offer-2"}, "already been accepted")
 	requireFailure(t, events, alice, Command{Action: "cancel", OfferID: "offer-2"}, "already been accepted")
-	events = add(t, events, bob, Command{Action: "claim"})
+	requireFailure(t, events, bob, Command{Action: "claim"}, "already has an account")
 	state, err = Replay(events)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestCancellationAndRenames(t *testing.T) {
 	if state.Accounts[1].Available != 100 || state.Accounts[1].Login != "renamed" || state.Offers["offer-2"].Status != "cancelled" {
 		t.Fatal("cancellation or rename failed")
 	}
-	requireFailure(t, events, Actor{ID: 1, Login: "renamed"}, Command{Action: "claim"}, "already claimed")
+	requireFailure(t, events, Actor{ID: 1, Login: "renamed"}, Command{Action: "claim"}, "already has an account")
 	requireFailure(t, events, bob, Command{Action: "accept", OfferID: "offer-2"}, "already been cancelled")
 	requireFailure(t, events, bob, Command{Action: "accept", OfferID: "offer-999"}, "does not exist")
 }
@@ -93,6 +93,40 @@ func TestSelfAcceptanceDoesNotMint(t *testing.T) {
 	}
 	if state.Issued != 100 || state.Accounts[1].Available != 100 || state.Accounts[1].Reserved != 0 {
 		t.Fatal("self acceptance changed supply")
+	}
+}
+
+func TestFirstAppearanceAutomaticallyFundsOffersAndAcceptances(t *testing.T) {
+	// Neither participant uses the onboarding command.
+	events := add(t, nil, alice, Command{Action: "offer", Recipient: "Amanda", Amount: 40})
+	state, err := Replay(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Issued != 100 || state.Accounts[1].Available != 60 || state.Accounts[1].Reserved != 40 {
+		t.Fatal("first offer was not automatically funded")
+	}
+	events = add(t, events, bob, Command{Action: "accept", OfferID: "offer-1"})
+	state, err = Replay(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Issued != 200 || state.Accounts[2].Available != 140 {
+		t.Fatal("first acceptance did not include its starting balance")
+	}
+	events = add(t, events, bob, Command{Action: "offer", Recipient: "Next", Amount: 10})
+	state, err = Replay(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Issued != 200 || state.Accounts[2].Available != 130 || state.Accounts[2].Reserved != 10 {
+		t.Fatal("later appearance credited another starting balance")
+	}
+	requireFailure(t, events, Actor{ID: 2, Login: "renamed"}, Command{Action: "claim"}, "already has an account")
+	requireFailure(t, nil, alice, Command{Action: "offer", Recipient: "x", Amount: 101}, "not enough")
+	requireFailure(t, nil, bob, Command{Action: "accept", OfferID: "offer-999"}, "does not exist")
+	if len(state.Accounts) != 2 {
+		t.Fatal("rejected requests created accounts")
 	}
 }
 

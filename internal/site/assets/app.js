@@ -63,10 +63,7 @@ if (form) {
     url.search = new URLSearchParams({
       template: "request.md",
       title: `ChrisCoin: offer ${amount} to ${recipient}`,
-      body:
-        "```chriscoin\n" +
-        JSON.stringify(command, null, 2) +
-        "\n```\n\nRecipient labels are decorative. Anyone can accept an open offer.\n",
+      body: "```chriscoin\n" + JSON.stringify(command, null, 2) + "\n```\n",
     }).toString();
     window.location.assign(url.toString());
   });
