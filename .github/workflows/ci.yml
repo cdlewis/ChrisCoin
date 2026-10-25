@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # Ledger-only PRs are checked by the trusted worker, avoiding approval-gated bot CI.
+    paths-ignore:
+      - ledger/events.jsonl
+      - social/offers/**
+      - social/requests/**
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: go run ./cmd/chriscoin validate
+      - name: Check append-only ledger on pull requests
+        if: github.event_name == 'pull_request'
+        run: go run ./cmd/chriscoin validate --base-ref origin/main
+      - run: go run ./cmd/chriscoin build

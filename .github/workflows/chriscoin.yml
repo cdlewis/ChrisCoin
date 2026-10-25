@@ -1,0 +1,82 @@
+name: ChrisCoin ledger and Pages
+
+on:
+  issues:
+    types: [opened, reopened]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+# Pending runs can be coalesced: every worker drains the durable open-issue queue.
+# Include deployment in this lock so an older build cannot replace a newer one.
+concurrency:
+  group: chriscoin-ledger
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      changed: ${{ steps.requests.outputs.changed }}
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Process requests using trusted main code
+        id: requests
+        if: github.event_name != 'push'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUEST_ISSUE: ${{ github.event.issue.number }}
+        run: go run ./cmd/chriscoin process
+
+  publish:
+    # A merge may have succeeded before a subsequent API operation failed.
+    if: ${{ always() && !cancelled() && (needs.process.outputs.changed == 'true' || needs.process.result == 'failure' || github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: process
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/configure-pages@v5
+        id: pages
+      - name: Validate and build the current canonical ledger
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          go run ./cmd/chriscoin validate
+          go run ./cmd/chriscoin build --base-path "$BASE_PATH"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4
+        id: deployment

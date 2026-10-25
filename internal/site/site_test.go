@@ -1,0 +1,244 @@
+package site
+
+import (
+	"encoding/json"
+	"fmt"
+	"html"
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/cdlewis/ChrisCoin/internal/ledger"
+	"github.com/cdlewis/ChrisCoin/internal/social"
+)
+
+func fixture(t *testing.T) []byte {
+	t.Helper()
+	events := []ledger.Event{}
+	now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
+	commands := []ledger.Command{{Action: "claim"}, {Action: "offer", Recipient: `<script>alert("x")</script> & Amanda`, Amount: 10}, {Action: "accept", OfferID: "offer-2"}, {Action: "offer", Recipient: "Next person", Amount: 20}}
+	for i, command := range commands {
+		actor := ledger.Actor{ID: 1, Login: "alice"}
+		if i == 2 {
+			actor = ledger.Actor{ID: 2, Login: "bob"}
+		}
+		// Persisted legacy records can predate the current name policy. Continue
+		// verifying that rendering escapes their original text without rewriting it.
+		kind := command.Action
+		if kind == "claim" {
+			kind = "allowance"
+		}
+		event := ledger.Event{Version: 1, Sequence: i + 1, ID: fmt.Sprintf("issue-%d", i+1), Type: kind, Actor: actor, Source: ledger.Source{Issue: i + 1, URL: fmt.Sprintf("https://github.com/test/coin/issues/%d", i+1), CreatedAt: now, BodySHA256: strings.Repeat("a", 64), Command: command}, Timestamp: now, PullRequest: i + 100}
+		events = append(events, event)
+	}
+	return ledger.Serialize(events)
+}
+
+func TestBuildPagesAndEscapeUserContent(t *testing.T) {
+	for _, base := range []string{"/ChrisCoin", ""} {
+		t.Run(base, func(t *testing.T) {
+			dir := t.TempDir()
+			data := fixture(t)
+			events, err := ledger.Parse(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			images := t.TempDir()
+			if err := social.Generate(events, images); err != nil {
+				t.Fatal(err)
+			}
+			err = Build(data, Options{Output: dir, Repository: "test/coin", BasePath: base, Commit: strings.Repeat("a", 40), ImageDirectory: images, SiteURL: "https://example.com" + base})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range []string{"index.html", "users/1/index.html", "users/2/index.html", "offers/offer-2/index.html", "offers/offer-4/index.html", "assets/app.js", "assets/style.css", "assets/stars.svg", "data/state.json", "data/events.jsonl", "social/offers/offer-2.png", "social/offers/offer-4.png"} {
+				if _, err := os.Stat(filepath.Join(dir, path)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			home, err := os.ReadFile(filepath.Join(dir, "index.html"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(home), base+"/users/1/") || !strings.Contains(string(home), base+"/assets/style.css") {
+				t.Fatal("incorrect base paths")
+			}
+			if !strings.Contains(string(home), base+"/?v="+strings.Repeat("a", 40)) || !strings.Contains(string(home), "/assets/app.js?v="+strings.Repeat("a", 40)) {
+				t.Fatal("page and asset URLs are not versioned")
+			}
+			if strings.Contains(string(home), "hero-art") || strings.Contains(string(home), "kindness") || strings.Contains(string(home), "silly currency") || strings.Contains(string(home), "Decorative only") {
+				t.Fatal("public ledger should use factual copy and respect requested omissions")
+			}
+			// Only a specific open offer's page may link to an acceptance request.
+			for path, want := range map[string]int{"index.html": 0, "users/1/index.html": 0, "users/2/index.html": 0, "offers/offer-2/index.html": 0, "offers/offer-4/index.html": 1} {
+				page, err := os.ReadFile(filepath.Join(dir, path))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(strings.ToLower(string(page)), "anyone") || strings.Contains(strings.ToLower(string(page)), "decorative only") {
+					t.Fatalf("unwanted copy in %s", path)
+				}
+				count := 0
+				for _, match := range regexp.MustCompile(`href="([^"]+)"`).FindAllStringSubmatch(string(page), -1) {
+					u, err := url.Parse(html.UnescapeString(match[1]))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if u.Host != "github.com" || !strings.HasSuffix(u.Path, "/issues/new") {
+						continue
+					}
+					command, err := ledger.ParseRequest(u.Query().Get("body"))
+					if err != nil {
+						continue
+					}
+					if command.Action == "accept" {
+						count++
+					}
+				}
+				if count != want {
+					t.Fatalf("%s: got %d acceptance links, want %d", path, count, want)
+				}
+			}
+			offer, _ := os.ReadFile(filepath.Join(dir, "offers/offer-2/index.html"))
+			if !strings.Contains(string(offer), `property="og:image"`) || !strings.Contains(string(offer), "https://example.com"+base+"/social/offers/offer-2.png?v=") || !strings.Contains(string(offer), `content="summary_large_image"`) {
+				t.Fatal("missing absolute social preview metadata")
+			}
+			if strings.Contains(string(offer), `<script>alert`) || !strings.Contains(string(offer), "&lt;script&gt;") {
+				t.Fatal("recipient HTML was not escaped")
+			}
+			if !strings.Contains(string(offer), "Accepted by") || strings.Contains(string(offer), ">Accept on GitHub") {
+				t.Fatal("settled offer still allows acceptance")
+			}
+			user, _ := os.ReadFile(filepath.Join(dir, "users/2/index.html"))
+			if !strings.Contains(string(user), "accepted offer-2") || strings.Contains(string(user), "offered 20") {
+				t.Fatal("account history contains unrelated events")
+			}
+			var state struct {
+				Issued int64  `json:"issued"`
+				Commit string `json:"commit"`
+			}
+			data, _ = os.ReadFile(filepath.Join(dir, "data/state.json"))
+			if err := json.Unmarshal(data, &state); err != nil {
+				t.Fatal(err)
+			}
+			if state.Issued != 200 || state.Commit != strings.Repeat("a", 40) || strings.Contains(string(data), `"claimed"`) {
+				t.Fatal("incorrect JSON export")
+			}
+			// Every generated local page and asset reference resolves, including user/offer routes.
+			re := regexp.MustCompile(`(?:href|src)="([^"]+)"`)
+			err = filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if entry.IsDir() || !strings.HasSuffix(path, ".html") {
+					return nil
+				}
+				data, err := os.ReadFile(path)
+				if err != nil {
+					return err
+				}
+				for _, match := range re.FindAllStringSubmatch(string(data), -1) {
+					u, err := url.Parse(match[1])
+					if err != nil {
+						return err
+					}
+					if u.IsAbs() || u.Host != "" || u.Path == "" {
+						continue
+					}
+					local := strings.TrimPrefix(u.Path, base)
+					target := filepath.Join(dir, local)
+					if strings.HasSuffix(local, "/") {
+						target = filepath.Join(target, "index.html")
+					}
+					if _, err := os.Stat(target); err != nil {
+						return fmt.Errorf("broken local link %s in %s: %w", u.Path, path, err)
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestRequestURLRoundTrips(t *testing.T) {
+	command := ledger.Command{Action: "offer", Recipient: "Amanda-123", Amount: 100}
+	u, err := url.Parse(RequestURL("test/coin", command))
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := ledger.ParseRequest(u.Query().Get("body"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded != command || u.Host != "github.com" || u.Query().Get("template") != "request.md" {
+		t.Fatal("prefilled request did not round-trip")
+	}
+}
+
+func TestEmptyLedgerAndInvalidLedger(t *testing.T) {
+	if err := Build(nil, Options{Output: t.TempDir(), Repository: "test/coin"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Build([]byte("bad"), Options{Output: t.TempDir(), Repository: "test/coin"}); err == nil {
+		t.Fatal("built an invalid ledger")
+	}
+}
+
+func TestRequestAndCompletedPaymentPages(t *testing.T) {
+	events, _ := ledger.Parse(fixture(t))
+	for _, command := range []ledger.Command{{Action: "request", Payer: "bob", Amount: 25}, {Action: "offer", Recipient: "bob", Amount: 15}} {
+		n := len(events) + 1
+		event, err := ledger.MakeEvent(events, ledger.Actor{ID: 1, Login: "alice"}, ledger.Source{Issue: n, URL: fmt.Sprintf("https://github.com/test/coin/issues/%d", n), BodySHA256: strings.Repeat("a", 64), CreatedAt: events[0].Timestamp, Command: command}, events[0].Timestamp, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		events = append(events, event)
+	}
+	images, output := t.TempDir(), t.TempDir()
+	if err := social.Generate(events, images); err != nil {
+		t.Fatal(err)
+	}
+	if err := Build(ledger.Serialize(events), Options{Output: output, Repository: "cdlewis/ChrisCoin", ImageDirectory: images}); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]string{"requests/request-5/index.html": "alice requests 25 CC from bob", "offers/offer-6/index.html": "alice sent bob 15 CC"} {
+		data, err := os.ReadFile(filepath.Join(output, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), want) || !strings.Contains(string(data), "https://coin.chrislewis.au/social/") {
+			t.Fatalf("missing sharing metadata in %s", path)
+		}
+		if path == "offers/offer-6/index.html" && (strings.Contains(string(data), ">Accept on GitHub") || !strings.Contains(string(data), "Sent to")) {
+			t.Fatal("direct payment still has acceptance")
+		}
+	}
+	for path, want := range map[string]int{"index.html": 0, "users/1/index.html": 0, "users/2/index.html": 0, "requests/request-5/index.html": 1} {
+		data, _ := os.ReadFile(filepath.Join(output, path))
+		count := 0
+		for _, match := range regexp.MustCompile(`href="([^"]+)"`).FindAllStringSubmatch(string(data), -1) {
+			u, _ := url.Parse(html.UnescapeString(match[1]))
+			if u == nil {
+				continue
+			}
+			c, err := ledger.ParseRequest(u.Query().Get("body"))
+			if err == nil && c.Action == "fulfill" {
+				count++
+			}
+		}
+		if count != want {
+			t.Fatalf("%s has %d payment buttons, want %d", path, count, want)
+		}
+	}
+	user, _ := os.ReadFile(filepath.Join(output, "users/2/index.html"))
+	if !strings.Contains(string(user), "sent 15 CC to bob") {
+		t.Fatal("recipient history lacks direct payment")
+	}
+}
