@@ -2,6 +2,7 @@ package social
 
 import (
 	"bytes"
+	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -86,5 +87,17 @@ func TestLargestAmountAndLongHistoricalNameRender(t *testing.T) {
 	event.Type = "accept"
 	if _, err := Render(event); err == nil {
 		t.Fatal("rendered a non-offer event")
+	}
+}
+
+func TestGradientKeepsConstantChannelsExact(t *testing.T) {
+	top, bottom := color.RGBA{255, 252, 204, 255}, color.RGBA{255, 216, 73, 255}
+	for row := 0; row <= 142; row++ {
+		if got := blend(top, bottom, row, 142); got.R != 255 || got.A != 255 {
+			t.Fatal("a constant gradient channel drifted due to rounding")
+		}
+	}
+	if blend(top, bottom, 0, 142) != top || blend(top, bottom, 142, 142) != bottom {
+		t.Fatal("gradient endpoints changed")
 	}
 }

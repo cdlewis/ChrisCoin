@@ -91,8 +91,11 @@ func (p *painter) fit(s string, size, maxWidth float64, mono bool) float64 {
 	}
 	return size
 }
-func blend(a, b color.RGBA, t float64) color.RGBA {
-	return rgba(uint8(float64(a.R)*(1-t)+float64(b.R)*t), uint8(float64(a.G)*(1-t)+float64(b.G)*t), uint8(float64(a.B)*(1-t)+float64(b.B)*t))
+func blend(a, b color.RGBA, progress, total int) color.RGBA {
+	// Integer interpolation avoids architecture-dependent fused floating-point
+	// rounding, which can otherwise change PNG pixels between ARM64 and AMD64.
+	channel := func(a, b uint8) uint8 { return uint8((int(a)*(total-progress) + int(b)*progress) / total) }
+	return rgba(channel(a.R, b.R), channel(a.G, b.G), channel(a.B, b.B))
 }
 func (p *painter) gradientText(s string, x, y int, size float64, top, bottom color.RGBA) {
 	face := p.face(false, size)
@@ -106,8 +109,8 @@ func (p *painter) gradientText(s string, x, y int, size float64, top, bottom col
 	gradient := image.NewRGBA(p.img.Bounds())
 	start := y - int(size)
 	for row := 0; row < Height; row++ {
-		t := max(0.0, min(1.0, float64(row-start)/size))
-		draw.Draw(gradient, image.Rect(0, row, Width, row+1), image.NewUniform(blend(top, bottom, t)), image.Point{}, draw.Src)
+		progress := max(0, min(int(size), row-start))
+		draw.Draw(gradient, image.Rect(0, row, Width, row+1), image.NewUniform(blend(top, bottom, progress, int(size))), image.Point{}, draw.Src)
 	}
 	draw.DrawMask(p.img, p.img.Bounds(), gradient, image.Point{}, mask, image.Point{}, draw.Over)
 }
@@ -128,7 +131,7 @@ func Render(event ledger.Event) ([]byte, error) {
 	}
 	p := painter{img: image.NewRGBA(image.Rect(0, 0, Width, Height)), bold: bold, mono: mono}
 	for y := 0; y < Height; y++ {
-		p.rect(0, y, Width, 1, blend(rgba(6, 10, 35), rgba(30, 8, 61), float64(y)/Height))
+		p.rect(0, y, Width, 1, blend(rgba(6, 10, 35), rgba(30, 8, 61), y, Height))
 	}
 	// A fixed starfield makes cards reproducible across machines and retries.
 	seed := uint32(0xC012C01)
@@ -159,7 +162,7 @@ func Render(event ledger.Event) ([]byte, error) {
 	badge := fmt.Sprintf("OFFER #%d", event.Source.Issue)
 	p.text(badge, 915, 92, p.fit(badge, 17, 205, true), true, magenta)
 	for x := 64; x < 1136; x++ {
-		p.rect(x, 143, 1, 2, blend(cyan, magenta, float64(x-64)/1072))
+		p.rect(x, 143, 1, 2, blend(cyan, magenta, x-64, 1072))
 	}
 	p.text("CHRISCOIN TRANSFER", 66, 190, 14, true, rgba(178, 182, 220))
 	amount := Amount(event.Source.Command.Amount) + " CC"
