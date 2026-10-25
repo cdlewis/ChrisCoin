@@ -41,7 +41,7 @@ func TestBuildPagesAndEscapeUserContent(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, path := range []string{"index.html", "users/1/index.html", "users/2/index.html", "offers/offer-2/index.html", "offers/offer-4/index.html", "assets/app.js", "assets/style.css", "data/state.json", "data/events.jsonl"} {
+			for _, path := range []string{"index.html", "users/1/index.html", "users/2/index.html", "offers/offer-2/index.html", "offers/offer-4/index.html", "assets/app.js", "assets/style.css", "assets/Virgil.woff2", "assets/Virgil.LICENSE.md", "data/state.json", "data/events.jsonl"} {
 				if _, err := os.Stat(filepath.Join(dir, path)); err != nil {
 					t.Fatal(err)
 				}
@@ -55,6 +55,9 @@ func TestBuildPagesAndEscapeUserContent(t *testing.T) {
 			}
 			if !strings.Contains(string(home), base+"/?v="+strings.Repeat("a", 40)) || !strings.Contains(string(home), "/assets/app.js?v="+strings.Repeat("a", 40)) {
 				t.Fatal("page and asset URLs are not versioned")
+			}
+			if strings.Contains(string(home), "hero-art") || strings.Contains(string(home), "kindness") || strings.Contains(string(home), "silly currency") {
+				t.Fatal("public ledger should use minimal, factual presentation")
 			}
 			offer, _ := os.ReadFile(filepath.Join(dir, "offers/offer-2/index.html"))
 			if strings.Contains(string(offer), `<script>alert`) || !strings.Contains(string(offer), "&lt;script&gt;") {

@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f7f5ec" />
+    <meta name="theme-color" content="#fdfcf9" />
     <meta
       name="description"
-      content="ChrisCoin: a silly currency with a public Git ledger. Claim 100 coins, make an offer, and let a pull request do the rest."
+      content="ChrisCoin public ledger. View account balances, create offers, and record transfers through GitHub."
     />
     <title>{{.Title}}</title>
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23f5cc54'/%3E%3Ctext x='32' y='46' font-size='42' text-anchor='middle' font-family='Georgia' fill='%231b3832'%3EC%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M4 4L36 3L37 36L3 37Z' fill='%23fdfcf9' stroke='%23262626' stroke-width='2'/%3E%3Ctext x='20' y='29' text-anchor='middle' font-family='monospace' font-size='26'%3EC%3C/text%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="{{assetURL `style.css`}}" />
     <script defer src="{{assetURL `app.js`}}"></script>
@@ -23,92 +23,52 @@
   >
     <a class="skip" href="#main">Skip to content</a>
     <header class="topbar wrap">
-      <a class="brand" href="{{homeURL}}"
-        ><span class="coin-mark" aria-hidden="true">C</span> ChrisCoin<span
-          class="brand-dot"
-          >.</span
-        ></a
-      >
+      <a class="brand" href="{{homeURL}}">ChrisCoin</a>
       <nav aria-label="Main navigation">
-        <a href="{{homeURL}}#accounts">The ledger</a
-        ><a href="https://github.com/{{.Repository}}"
-          >GitHub <span aria-hidden="true">↗</span></a
-        ><a class="button small" href="{{.ClaimURL}}"
-          >Get 100 coins <span aria-hidden="true">↗</span></a
-        >
+        <a href="{{homeURL}}#accounts">Ledger</a
+        ><a href="https://github.com/{{.Repository}}">GitHub ↗</a>
       </nav>
     </header>
     <main id="main" class="wrap">
       {{if eq .Kind "home"}}
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">
-            <span class="live-dot"></span> A currency committed to Git
-          </p>
-          <h1>Money, by<br /><em>pull request.</em></h1>
-          <p class="lede">
-            Give a little ChrisCoin. Make someone’s day.<br />A very public
-            ledger for a very silly currency.
-          </p>
-          <a class="button" href="{{.ClaimURL}}"
-            >Claim your first 100 <span aria-hidden="true">↗</span></a
-          ><span class="hero-note">Just bring your GitHub account.</span>
-        </div>
-        <div class="hero-art" aria-hidden="true">
-          <span class="orbit orbit-one"></span
-          ><span class="orbit orbit-two"></span>
-          <div class="big-coin">
-            <span class="coin-top">THE PEOPLE’S CHRIS</span
-            ><span class="coin-letter">C</span
-            ><span class="coin-bottom">100% PULL REQUEST POWERED</span>
-          </div>
-          <div class="art-tag">No mining. Just merging.</div>
-          <span class="spark spark-one">✦</span
-          ><span class="spark spark-two">✦</span>
-        </div>
+      <section class="page-heading">
+        <h1>Public ledger</h1>
+        <p class="muted">Account balances, offers, and recorded transfers.</p>
       </section>
-      <section class="stats" aria-label="Ledger totals">
+      <dl class="stats" aria-label="Ledger totals">
         <div>
-          <span class="stat-label">IN CIRCULATION</span
-          ><strong>{{coins .State.Issued}} <small>CC</small></strong>
-        </div>
-        <div>
-          <span class="stat-label">COIN HOLDERS</span
-          ><strong>{{len .Accounts}}</strong>
+          <dt>Total issued</dt>
+          <dd>{{coins .State.Issued}} <small>CC</small></dd>
         </div>
         <div>
-          <span class="stat-label">LEDGER ENTRIES</span
-          ><strong>{{len .State.Events}}</strong>
+          <dt>Accounts</dt>
+          <dd>{{len .Accounts}}</dd>
         </div>
-        <div class="stat-aside">
-          <span class="live-dot"></span> Public by design.<br />Every coin has a
-          paper trail.
+        <div>
+          <dt>Transactions</dt>
+          <dd>{{len .State.Events}}</dd>
         </div>
-      </section>
+      </dl>
       <div class="dashboard">
-        <div class="main-column">
-          <section id="accounts" class="panel">
+        <div>
+          <section id="accounts" class="section">
             <div class="section-heading">
-              <div>
-                <p class="eyebrow">THE BALANCE SHEET</p>
-                <h2>Meet the coin holders.</h2>
-              </div>
-              <span class="pill">{{len .Accounts}} accounts</span>
+              <h2>Accounts</h2>
+              <label
+                ><span class="sr-only">Find an account</span
+                ><input
+                  type="search"
+                  id="account-search"
+                  placeholder="Find an account"
+                  autocomplete="off"
+              /></label>
             </div>
-            <label class="search-label"
-              ><span class="sr-only">Find an account</span
-              ><input
-                type="search"
-                id="account-search"
-                placeholder="Find a GitHub account…"
-                autocomplete="off"
-            /></label>
             {{if .Accounts}}
             <div class="table-scroll">
               <table>
                 <thead>
                   <tr>
-                    <th scope="col">Account</th>
+                    <th scope="col">GitHub account</th>
                     <th scope="col" class="numeric">Available</th>
                     <th scope="col" class="numeric">Reserved</th>
                   </tr>
@@ -116,14 +76,7 @@
                 <tbody>
                   {{range .Accounts}}
                   <tr data-account="{{.Login}} {{.ID}}">
-                    <td>
-                      <a class="account-link" href="{{userURL .ID}}"
-                        ><span class="avatar" aria-hidden="true">@</span
-                        ><span
-                          >{{.Login}}<small>GitHub ID {{.ID}}</small></span
-                        ></a
-                      >
-                    </td>
+                    <td><a href="{{userURL .ID}}">{{.Login}}</a></td>
                     <td class="numeric amount">
                       {{coins .Available}} <small>CC</small>
                     </td>
@@ -137,53 +90,39 @@
             </div>
             <p id="no-matches" class="empty" hidden>No matching accounts.</p>
             {{else}}
-            <div class="empty">
-              <span class="empty-symbol" aria-hidden="true">◎</span>
-              <h3>Be the first name in the ledger.</h3>
-              <p>Claim 100 ChrisCoin to get things moving.</p>
-            </div>
+            <p class="empty">
+              No accounts recorded. Claim an allowance to open an account.
+            </p>
             {{end}}
           </section>
-          <section id="offers" class="panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">UP FOR GRABS</p>
-                <h2>Open offers.</h2>
-              </div>
-              <span class="tiny-label">FIRST CLAIM WINS</span>
-            </div>
-            <p class="section-note">
-              The name on an offer is just a label.
-              <strong>Anyone can accept it.</strong>
+          <section id="offers" class="section">
+            <h2>Open offers</h2>
+            <p class="note">
+              Recipient labels do not restrict ownership. Anyone can accept an
+              open offer.
             </p>
             <div class="offer-list">
               {{$open := false}}{{range .Offers}}{{if eq .Status "open"}}{{$open
-              = true}}{{template "offer-card" .}}{{end}}{{end}}{{if not $open}}
-              <p class="empty compact">
-                No open offers. Make someone an offer they can accept.
-              </p>
+              = true}}{{template "offer-card" .}}{{end}}{{end}} {{if not $open}}
+              <p class="empty">No open offers.</p>
               {{end}}
             </div>
           </section>
         </div>
-        <aside class="side-column">
-          <section id="send" class="send-panel">
-            <span class="send-icon" aria-hidden="true">↗</span>
-            <p class="eyebrow">PASS IT ON</p>
-            <h2>Send a little<br />ChrisCoin.</h2>
+        <aside>
+          <section id="send" class="request-panel">
+            <h2>Create an offer</h2>
             <form id="send-form">
-              <label for="recipient">Who’s it for?</label
-              ><input
+              <label for="recipient">Recipient label</label>
+              <input
                 id="recipient"
                 name="recipient"
-                placeholder="Amanda, a friend, the universe…"
+                placeholder="Amanda"
                 required
                 maxlength="100"
               />
-              <p class="field-note">
-                A decorative label. Anyone can claim the offer.
-              </p>
-              <label for="amount">How much?</label>
+              <p class="field-note">Decorative only. Anyone may accept.</p>
+              <label for="amount">Amount</label>
               <div class="amount-input">
                 <input
                   id="amount"
@@ -198,112 +137,96 @@
                 /><span>CC</span>
               </div>
               <button class="button" type="submit">
-                Continue on GitHub <span aria-hidden="true">↗</span>
+                Continue on GitHub ↗
               </button>
               <p id="send-error" role="alert" hidden></p>
             </form>
             <noscript
               ><p>
-                JavaScript opens a prefilled request. You can also
                 <a
                   href="https://github.com/{{.Repository}}/issues/new?template=request.md"
-                  >create a request on GitHub</a
+                  >Create a request on GitHub</a
                 >.
               </p></noscript
             >
-            <p class="send-footnote">
-              You’ll confirm the request while signed in. Coins are reserved
-              once your offer is recorded.
+            <p class="note">
+              Confirm while signed in. The amount is reserved when the offer is
+              recorded.
             </p>
           </section>
-          <section class="how-it-works">
-            <p class="eyebrow">A SIMPLE EXCHANGE</p>
-            <ol>
-              <li>
-                <span>01</span>
-                <div>
-                  <h3>Get your coins</h3>
-                  <p>Every GitHub account gets a one-time 100 CC allowance.</p>
-                </div>
-              </li>
-              <li>
-                <span>02</span>
-                <div>
-                  <h3>Make an offer</h3>
-                  <p>Pick a label and amount. Your coins wait in reserve.</p>
-                </div>
-              </li>
-              <li>
-                <span>03</span>
-                <div>
-                  <h3>Someone accepts</h3>
-                  <p>
-                    The first acceptance recorded wins. A PR makes it official.
-                  </p>
-                </div>
-              </li>
-            </ol>
+          <section class="allowance-panel">
+            <h2>Starting allowance</h2>
+            <p class="note">Each GitHub account can claim 100 CC once.</p>
+            <a class="button" href="{{.ClaimURL}}">Claim 100 CC ↗</a>
           </section>
         </aside>
       </div>
       {{else if eq .Kind "user"}}
-      <section class="page-hero">
-        <a class="back-link" href="{{homeURL}}#accounts">← All accounts</a>
-        <p class="eyebrow">GITHUB ID {{.Account.ID}}</p>
-        <h1>{{.Account.Login}}<span class="brand-dot">.</span></h1>
-        <p class="lede">One account. Every coin accounted for.</p>
-        <a href="https://github.com/{{.Account.Login}}"
-          >View GitHub profile ↗</a
-        >
+      <section class="page-heading">
+        <a class="back-link" href="{{homeURL}}#accounts">← Accounts</a>
+        <h1>{{.Account.Login}}</h1>
+        <p class="note">
+          GitHub ID <span class="mono">{{.Account.ID}}</span> ·
+          <a href="https://github.com/{{.Account.Login}}">GitHub profile ↗</a>
+        </p>
       </section>
-      <section class="stats" aria-label="Account balances">
+      <dl class="stats" aria-label="Account balances">
         <div>
-          <span class="stat-label">AVAILABLE</span
-          ><strong>{{coins .Account.Available}} <small>CC</small></strong>
-        </div>
-        <div>
-          <span class="stat-label">RESERVED IN OFFERS</span
-          ><strong>{{coins .Account.Reserved}} <small>CC</small></strong>
+          <dt>Available</dt>
+          <dd>{{coins .Account.Available}} <small>CC</small></dd>
         </div>
         <div>
-          <span class="stat-label">ALLOWANCE</span
-          ><strong class="status-word"
-            >{{if .Account.Claimed}}Claimed{{else}}Unclaimed{{end}}</strong
-          >
+          <dt>Reserved</dt>
+          <dd>{{coins .Account.Reserved}} <small>CC</small></dd>
         </div>
-      </section>
-      <section class="panel">
-        <div class="section-heading">
-          <h2>Their offers.</h2>
-          <a href="{{homeURL}}#send">Make an offer ↗</a>
+        <div>
+          <dt>Allowance</dt>
+          <dd class="status-word">
+            {{if .Account.Claimed}}Claimed{{else}}Unclaimed{{end}}
+          </dd>
         </div>
+      </dl>
+      <section class="section">
+        <h2>Offers</h2>
         <div class="offer-list">
           {{$any := false}}{{range .Offers}}{{if eq .Sender $.Account.ID}}{{$any
           = true}}{{template "offer-card" .}}{{end}}{{end}}{{if not $any}}
-          <p class="empty compact">No offers yet.</p>
+          <p class="empty">No offers recorded.</p>
           {{end}}
         </div>
       </section>
       {{else}}
-      <section class="page-hero">
-        <a class="back-link" href="{{homeURL}}#offers">← All offers</a>
-        <p class="eyebrow">{{.Offer.ID}} · {{.Offer.Status}}</p>
-        <h1>{{coins .Offer.Amount}} <em>ChrisCoin.</em></h1>
-        <p class="lede">
-          {{(account .Offer.Sender).Login}} offers “{{.Offer.RecipientLabel}}”
-          {{coins .Offer.Amount}} ChrisCoin.
+      <section class="page-heading">
+        <a class="back-link" href="{{homeURL}}#offers">← Offers</a>
+        <h1>Offer <span class="mono">{{.Offer.ID}}</span></h1>
+        <p class="offer-amount">
+          {{coins .Offer.Amount}} <small>CC</small>
+          <span class="status">{{.Offer.Status}}</span>
         </p>
-        <p class="offer-warning">
-          The recipient name is decorative. Anyone can accept this offer.
-        </p>
+        <dl class="offer-details">
+          <div>
+            <dt>Sender</dt>
+            <dd>
+              <a href="{{userURL .Offer.Sender}}"
+                >{{(account .Offer.Sender).Login}}</a
+              >
+            </dd>
+          </div>
+          <div>
+            <dt>Recipient label</dt>
+            <dd>{{.Offer.RecipientLabel}}</dd>
+          </div>
+        </dl>
         {{if eq .Offer.Status "open"}}
+        <p class="note">
+          The recipient label is decorative. Anyone can accept this offer.
+        </p>
         <div class="offer-actions">
           <a class="button" href="{{acceptURL .Offer.ID}}"
             >Accept on GitHub ↗</a
-          ><a class="text-button" href="{{cancelURL .Offer.ID}}"
-            >Sender: cancel offer</a
-          >
+          ><a href="{{cancelURL .Offer.ID}}">Sender: cancel offer</a>
         </div>
+        <p class="note">The first acceptance recorded in the ledger wins.</p>
         {{else if eq .Offer.Status "accepted"}}
         <p>
           Accepted by
@@ -312,46 +235,31 @@
           >.
         </p>
         {{else}}
-        <p>
-          The sender cancelled this offer. The reserved coins were released.
-        </p>
+        <p>Cancelled. Reserved coins were returned to the sender.</p>
         {{end}}
       </section>
-      <section class="panel">
-        <h2>The paper trail.</h2>
+      <section class="section provenance">
+        <h2>Record</h2>
         <p>
-          Offered by
-          <a href="{{userURL .Offer.Sender}}"
-            >{{(account .Offer.Sender).Login}}</a
-          >
-          in
           <a href="{{.Offer.Event.Source.URL}}"
-            >request #{{.Offer.Event.Source.Issue}}</a
+            >Request #{{.Offer.Event.Source.Issue}}</a
           >{{if .Offer.Event.PullRequest}} ·
           <a
             href="https://github.com/{{.Repository}}/pull/{{.Offer.Event.PullRequest}}"
-            >ledger PR #{{.Offer.Event.PullRequest}}</a
-          >{{end}}.
-        </p>
-        <p class="muted">
-          An open offer reserves the sender’s coins. The first acceptance
-          successfully merged into the ledger wins; GitHub workflow scheduling
-          can affect who gets there first.
+            >PR #{{.Offer.Event.PullRequest}}</a
+          >{{end}} · {{.Offer.Event.Timestamp.Format "02 Jan 2006, 15:04 UTC"}}
         </p>
       </section>
       {{end}} {{if ne .Kind "offer"}}
-      <section class="panel activity">
+      <section class="section activity">
         <div class="section-heading">
-          <div>
-            <p class="eyebrow">THE PAPER TRAIL</p>
-            <h2>
-              {{if eq .Kind "user"}}Account history.{{else}}Latest commits to
-              kindness.{{end}}
-            </h2>
-          </div>
+          <h2>
+            {{if eq .Kind "user"}}Account history{{else}}Recent
+            transactions{{end}}
+          </h2>
           <a
             href="https://github.com/{{.Repository}}/blob/main/ledger/events.jsonl"
-            >View raw ledger ↗</a
+            >Raw ledger ↗</a
           >
         </div>
         <ol class="activity-list">
@@ -359,10 +267,7 @@
           "user"}}{{$show = related . $.Account.ID}}{{end}}{{if and $show (or
           (eq $.Kind "user") (lt $count 15))}}{{$count = inc $count}}
           <li>
-            <span class="activity-icon" aria-hidden="true"
-              >{{if eq .Type "allowance"}}+{{else if eq .Type "offer"}}↗{{else
-              if eq .Type "accept"}}✓{{else}}↩{{end}}</span
-            >
+            <span class="sequence">{{.Sequence}}</span>
             <div>
               <a href="{{userURL .Actor.ID}}">{{.Actor.Login}}</a> {{description
               .}}<small
@@ -376,52 +281,39 @@
             </div>
           </li>
           {{end}}{{end}}{{if eq $count 0}}
-          <li class="empty compact">
-            Nothing recorded yet. The ledger starts with you.
-          </li>
+          <li class="empty">No transactions recorded.</li>
           {{end}}
         </ol>
       </section>
       {{end}}
-      <section class="closing-note">
-        <span class="coin-mark" aria-hidden="true">C</span>
-        <p>
-          No real money. No grand promises.<br />Just ChrisCoin, and a Git
-          history that remembers.
-        </p>
-        <a href="https://github.com/{{.Repository}}">Fork the idea ↗</a>
-      </section>
     </main>
     <footer class="footer wrap">
-      <span>ChrisCoin · A silly currency with a public ledger.</span
-      ><span
-        >Updated {{.Updated}}{{if .Commit}} ·
+      <p>
+        Updated {{.Updated}}{{if .Commit}} ·
         <a href="https://github.com/{{.Repository}}/commit/{{.Commit}}"
           >{{short .Commit}}</a
-        >{{end}} · <a href="{{.BasePath}}/data/state.json">JSON</a></span
-      >
+        >{{end}} · <a href="{{.BasePath}}/data/state.json">JSON</a>
+      </p>
+      <p>ChrisCoin has no monetary value.</p>
     </footer>
   </body>
 </html>
 {{define "offer-card"}}
 <article class="offer-card">
   <div>
-    <span class="pill {{.Status}}">{{.Status}}</span>
     <h3>
       <a href="{{offerURL .ID}}"
-        >{{coins .Amount}} CC
-        <span class="muted">for</span> {{.RecipientLabel}}</a
+        ><span class="mono">{{coins .Amount}} CC</span> → {{.RecipientLabel}}</a
       >
     </h3>
-    <p>
+    <p class="note">
       From <a href="{{userURL .Sender}}">{{(account .Sender).Login}}</a> ·
-      {{.ID}}
+      <a href="{{offerURL .ID}}">{{.ID}}</a>{{if ne .Status "open"}} ·
+      {{.Status}}{{end}}
     </p>
   </div>
-  {{if eq .Status "open"}}<a
-    class="button outline small"
-    href="{{acceptURL .ID}}"
+  {{if eq .Status "open"}}<a class="button small" href="{{acceptURL .ID}}"
     >Accept ↗</a
-  >{{else}}<a class="text-button" href="{{offerURL .ID}}">Details ↗</a>{{end}}
+  >{{else}}<a class="details-link" href="{{offerURL .ID}}">Details</a>{{end}}
 </article>
 {{end}}

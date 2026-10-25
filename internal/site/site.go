@@ -154,7 +154,7 @@ func Build(data []byte, options Options) error {
 		}
 		return f.Close()
 	}
-	page.Kind, page.Title = "home", "ChrisCoin · Money, by pull request"
+	page.Kind, page.Title = "home", "ChrisCoin · Public ledger"
 	if err := write("", page); err != nil {
 		return err
 	}
@@ -175,7 +175,15 @@ func Build(data []byte, options Options) error {
 	if err := os.MkdirAll(filepath.Join(options.Output, "assets"), 0755); err != nil {
 		return err
 	}
-	for _, name := range []string{"style.css", "app.js"} {
+	assets, err := files.ReadDir("assets")
+	if err != nil {
+		return err
+	}
+	for _, asset := range assets {
+		if asset.IsDir() {
+			continue
+		}
+		name := asset.Name()
 		content, err := files.ReadFile("assets/" + name)
 		if err != nil {
 			return err

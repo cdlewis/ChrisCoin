@@ -46,6 +46,8 @@ All backend logic is Go, with the standard library and no third-party modules:
 - `internal/github`: repository-scoped REST API client.
 - `internal/site`: Go HTML templates and plain CSS/JavaScript. The browser only filters accounts and prepares GitHub request URLs.
 
+The interface uses a minimal hand-drawn style with factual ledger terminology. The locally bundled, unmodified [Virgil font](https://github.com/excalidraw/virgil) is by Ellinor Rapp, distributed under the [SIL Open Font License](internal/site/assets/Virgil.LICENSE.md). It is pinned to upstream commit `3d4c829dc85b455d4646631ac52bc1517df04217`; no third-party font service is required.
+
 The canonical ledger is `ledger/events.jsonl`. Each event records its sequence, authenticated numeric actor ID, source issue, original body hash, frozen command, timestamp, and PR number. Available and reserved balances are rebuilt from that ledger. JSON exports are at `/data/state.json` and `/data/events.jsonl` beneath the site's base path.
 
 The worker runs with one repository-wide concurrency lock, validates against current `main`, and rewrites its own deterministic branch with only the ledger change before merging its exact head SHA. A request ID can appear only once. The first successful merge determines the winner of competing accept/cancel requests; submission order is not guaranteed. A five-minute scheduled recovery scans open requests because Actions can coalesce pending runs or interrupt execution. Schedules are best-effort and may be delayed; GitHub can disable schedules after 60 days of public-repository inactivity. Manually run the ledger workflow to recover.
