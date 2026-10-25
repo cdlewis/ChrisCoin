@@ -128,7 +128,7 @@
         </div>
         <aside>
           <section id="send" class="request-panel">
-            <h2>Create an offer</h2>
+            <h2>Send ChrisCoin</h2>
             <form id="send-form">
               <label for="recipient">Recipient</label>
               <input
@@ -152,9 +152,7 @@
                   inputmode="numeric"
                 /><span>CC</span>
               </div>
-              <button class="button" type="submit">
-                Continue on GitHub ↗
-              </button>
+              <button class="button" type="submit">Send on GitHub ↗</button>
               <p id="send-error" role="alert" hidden></p>
             </form>
             <noscript
@@ -166,8 +164,8 @@
               </p></noscript
             >
             <p class="note">
-              Confirm while signed in. The amount is reserved when the offer is
-              recorded.
+              Confirm your transfer on GitHub. The amount is reserved until
+              accepted.
             </p>
           </section>
           <section class="allowance-panel">
@@ -237,7 +235,6 @@
             >Accept on GitHub ↗</a
           ><a href="{{cancelURL .Offer.ID}}">Sender: cancel offer</a>
         </div>
-        <p class="note">The first acceptance recorded in the ledger wins.</p>
         {{else if eq .Offer.Status "accepted"}}
         <p>
           Accepted by
@@ -335,8 +332,6 @@
       {{.Status}}{{end}}
     </p>
   </div>
-  {{if eq .Status "open"}}<a class="button small" href="{{acceptURL .ID}}"
-    >Accept ↗</a
-  >{{else}}<a class="details-link" href="{{offerURL .ID}}">Details</a>{{end}}
+  <a class="button small" href="{{offerURL .ID}}">View offer ↗</a>
 </article>
 {{end}}

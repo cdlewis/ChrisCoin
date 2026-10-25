@@ -3,6 +3,7 @@ package site
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -58,6 +59,36 @@ func TestBuildPagesAndEscapeUserContent(t *testing.T) {
 			}
 			if strings.Contains(string(home), "hero-art") || strings.Contains(string(home), "kindness") || strings.Contains(string(home), "silly currency") || strings.Contains(string(home), "Decorative only") {
 				t.Fatal("public ledger should use factual copy and respect requested omissions")
+			}
+			// Only a specific open offer's page may link to an acceptance request.
+			for path, want := range map[string]int{"index.html": 0, "users/1/index.html": 0, "users/2/index.html": 0, "offers/offer-2/index.html": 0, "offers/offer-4/index.html": 1} {
+				page, err := os.ReadFile(filepath.Join(dir, path))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(strings.ToLower(string(page)), "anyone") || strings.Contains(strings.ToLower(string(page)), "decorative only") {
+					t.Fatalf("unwanted copy in %s", path)
+				}
+				count := 0
+				for _, match := range regexp.MustCompile(`href="([^"]+)"`).FindAllStringSubmatch(string(page), -1) {
+					u, err := url.Parse(html.UnescapeString(match[1]))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if u.Host != "github.com" || !strings.HasSuffix(u.Path, "/issues/new") {
+						continue
+					}
+					command, err := ledger.ParseRequest(u.Query().Get("body"))
+					if err != nil {
+						continue
+					}
+					if command.Action == "accept" {
+						count++
+					}
+				}
+				if count != want {
+					t.Fatalf("%s: got %d acceptance links, want %d", path, count, want)
+				}
 			}
 			offer, _ := os.ReadFile(filepath.Join(dir, "offers/offer-2/index.html"))
 			if strings.Contains(string(offer), `<script>alert`) || !strings.Contains(string(offer), "&lt;script&gt;") {
