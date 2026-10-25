@@ -288,3 +288,67 @@ func TestUnexpectedPRCannotBeUsedAsAuthority(t *testing.T) {
 		t.Fatal("accepted a PR with untrusted provenance")
 	}
 }
+
+func TestNamePolicyRejectsBeforeAnyLedgerWrite(t *testing.T) {
+	for _, test := range []struct{ name, login, recipient string }{
+		{"long-login", "longname123", "Amanda"},
+		{"invalid-login", "bad_name", "Amanda"},
+		{"moderated-login", "idiot", "Amanda"},
+		{"long-recipient", "alice", "longname123"},
+		{"invalid-recipient", "alice", "bad_name"},
+		{"moderated-recipient", "alice", "moron"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := newFake()
+			issue := s.request(1, 1, ledger.Command{Action: "offer", Recipient: test.recipient, Amount: 10})
+			issue.User.Login = test.login
+			s.issues[1] = issue
+			process(t, s, issue)
+			if len(s.main) != 0 || len(s.branches) != 0 || len(s.prs) != 0 || s.merges != 0 {
+				t.Fatal("rejected name reached a ledger branch or PR")
+			}
+			if s.issues[1].State != "closed" || len(s.comments[1]) != 1 || !strings.Contains(s.comments[1][0].Body, "Request rejected:") {
+				t.Fatal("request did not receive a rejection")
+			}
+			if len(s.state(t).Accounts) != 0 {
+				t.Fatal("rejected request received a starting balance")
+			}
+		})
+	}
+}
+
+func TestCurrentUsernameIsCheckedOnFrozenRetry(t *testing.T) {
+	s := newFake()
+	issue := s.request(1, 1, ledger.Command{Action: "offer", Recipient: "Amanda", Amount: 10})
+	s.failMerge = true
+	if _, err := s.worker().Process(ctx, issue); err == nil {
+		t.Fatal("expected interrupted merge")
+	}
+	issue.User.Login = "longname123"
+	s.issues[1] = issue
+	process(t, s, issue)
+	if s.merges != 0 || len(s.main) != 0 || s.prs["chriscoin/request-1"].State != "closed" {
+		t.Fatal("frozen actor bypassed current username restriction")
+	}
+}
+
+func TestLegacyFrozenRecipientIsCheckedOnRetry(t *testing.T) {
+	s := newFake()
+	issue := s.request(1, 1, ledger.Command{Action: "offer", Recipient: "Amanda", Amount: 10})
+	s.failMerge = true
+	if _, err := s.worker().Process(ctx, issue); err == nil {
+		t.Fatal("expected interrupted merge")
+	}
+	branch := "chriscoin/request-1"
+	events, err := ledger.Parse(s.branches[branch])
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a checkpoint made before the stricter policy was deployed.
+	events[0].Source.Command.Recipient = "legacy recipient"
+	s.branches[branch] = ledger.Serialize(events)
+	process(t, s, issue)
+	if s.merges != 0 || len(s.main) != 0 || s.prs[branch].State != "closed" {
+		t.Fatal("legacy frozen recipient bypassed current policy")
+	}
+}

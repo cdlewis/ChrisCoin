@@ -25,10 +25,13 @@ func fixture(t *testing.T) []byte {
 		if i == 2 {
 			actor = ledger.Actor{ID: 2, Login: "bob"}
 		}
-		event, err := ledger.MakeEvent(events, actor, ledger.Source{Issue: i + 1, URL: fmt.Sprintf("https://github.com/test/coin/issues/%d", i+1), CreatedAt: now, BodySHA256: strings.Repeat("a", 64), Command: command}, now, i+100)
-		if err != nil {
-			t.Fatal(err)
+		// Persisted legacy records can predate the current name policy. Continue
+		// verifying that rendering escapes their original text without rewriting it.
+		kind := command.Action
+		if kind == "claim" {
+			kind = "allowance"
 		}
+		event := ledger.Event{Version: 1, Sequence: i + 1, ID: fmt.Sprintf("issue-%d", i+1), Type: kind, Actor: actor, Source: ledger.Source{Issue: i + 1, URL: fmt.Sprintf("https://github.com/test/coin/issues/%d", i+1), CreatedAt: now, BodySHA256: strings.Repeat("a", 64), Command: command}, Timestamp: now, PullRequest: i + 100}
 		events = append(events, event)
 	}
 	return ledger.Serialize(events)
@@ -152,7 +155,7 @@ func TestBuildPagesAndEscapeUserContent(t *testing.T) {
 }
 
 func TestRequestURLRoundTrips(t *testing.T) {
-	command := ledger.Command{Action: "offer", Recipient: "Amanda & friends + ♥", Amount: 100}
+	command := ledger.Command{Action: "offer", Recipient: "Amanda-123", Amount: 100}
 	u, err := url.Parse(RequestURL("test/coin", command))
 	if err != nil {
 		t.Fatal(err)

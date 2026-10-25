@@ -1,0 +1,4 @@
+github.com/TwiN/go-away v1.8.1 h1:zbbr0ISBkDSbnUFHrnRUhbCR/7+9ONMWtIi1BiQWX8Y=
+github.com/TwiN/go-away v1.8.1/go.mod h1:nSQEvd/FYBNmnC27RGJdPi91LXYMG8SrRc1o1w+VmKY=
+golang.org/x/text v0.30.0 h1:yznKA/E9zq54KzlzBEAWn1NXSQ8DIp/NYMy88xJjl4k=
+golang.org/x/text v0.30.0/go.mod h1:yDdHFIX9t+tORqspjENWgzaCVXgk0yYnYuSZ8UzzBVM=

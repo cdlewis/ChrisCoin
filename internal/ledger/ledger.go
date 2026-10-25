@@ -115,10 +115,22 @@ func (c *Command) UnmarshalJSON(data []byte) error {
 		}
 	}
 	*c = Command(p)
-	return c.Validate()
+	return c.validateStructure()
 }
 
+// Validate checks new requests. Persisted events instead use validateStructure
+// so a policy or dictionary update cannot invalidate the existing ledger.
 func (c Command) Validate() error {
+	if err := c.validateStructure(); err != nil {
+		return err
+	}
+	if c.Action == "offer" {
+		return ValidateName(c.Recipient, "recipient")
+	}
+	return nil
+}
+
+func (c Command) validateStructure() error {
 	switch c.Action {
 	case "claim":
 		if c.Amount != 0 || c.Recipient != "" || c.OfferID != "" {
@@ -166,6 +178,9 @@ func ParseRequest(body string) (Command, error) {
 	if err := DecodeStrict([]byte(blocks[0][1]), &command); err != nil {
 		return command, fmt.Errorf("invalid request: %w", err)
 	}
+	if err := command.Validate(); err != nil {
+		return command, err
+	}
 	return command, nil
 }
 
@@ -198,6 +213,12 @@ func Serialize(events []Event) []byte {
 }
 
 func MakeEvent(events []Event, actor Actor, source Source, now time.Time, pr int) (Event, error) {
+	if err := ValidateName(actor.Login, "GitHub username"); err != nil {
+		return Event{}, err
+	}
+	if err := source.Command.Validate(); err != nil {
+		return Event{}, err
+	}
 	kind := source.Command.Action
 	if kind == "claim" {
 		kind = "allowance"
@@ -224,7 +245,7 @@ func Replay(events []Event) (*State, error) {
 			return nil, errors.New("invalid event provenance")
 		}
 		c := e.Source.Command
-		if err := c.Validate(); err != nil {
+		if err := c.validateStructure(); err != nil {
 			return nil, err
 		}
 		kind := c.Action

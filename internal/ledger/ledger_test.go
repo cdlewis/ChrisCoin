@@ -43,7 +43,7 @@ func TestAllowanceOfferAcceptanceAndConservation(t *testing.T) {
 	if state.Accounts[1].Available != 20 || state.Accounts[1].Reserved != 80 {
 		t.Fatal("offer did not reserve funds")
 	}
-	requireFailure(t, events, alice, Command{Action: "offer", Recipient: "Someone else", Amount: 21}, "not enough")
+	requireFailure(t, events, alice, Command{Action: "offer", Recipient: "Someone", Amount: 21}, "not enough")
 	// The decorative name does not restrict the claimant.
 	events = add(t, events, bob, Command{Action: "accept", OfferID: "offer-2"})
 	requireFailure(t, events, Actor{ID: 3, Login: "amanda"}, Command{Action: "accept", OfferID: "offer-2"}, "already been accepted")

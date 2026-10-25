@@ -45,14 +45,13 @@ if (form) {
     const amount = Number(form.elements.amount.value);
     const error = document.querySelector("#send-error");
     if (
-      !recipient ||
-      [...recipient].length > 100 ||
-      /[\u0000-\u001f\u007f]/.test(recipient) ||
+      recipient.length > 10 ||
+      !/^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/.test(recipient) ||
       !Number.isSafeInteger(amount) ||
       amount <= 0
     ) {
       error.textContent =
-        "Enter a recipient label and a positive whole number of coins.";
+        "Use a 1–10 character recipient (ASCII letters, digits, single internal hyphens) and a positive whole-number amount.";
       error.hidden = false;
       return;
     }

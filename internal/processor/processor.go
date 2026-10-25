@@ -169,6 +169,11 @@ func (p *Processor) Process(ctx context.Context, issue gh.Issue) (bool, error) {
 	if issue.User.Type != "User" {
 		return p.reject(ctx, issue, pr, fmt.Errorf("only GitHub user accounts can transact"))
 	}
+	// Also check the current login on retries: a frozen command must not bypass
+	// name restrictions after its authenticated author changes their username.
+	if err := ledger.ValidateName(issue.User.Login, "GitHub username"); err != nil {
+		return p.reject(ctx, issue, pr, err)
+	}
 	if issue.HTMLURL != fmt.Sprintf("https://github.com/%s/issues/%d", p.Repository, issue.Number) {
 		return false, fmt.Errorf("request belongs to a different repository")
 	}

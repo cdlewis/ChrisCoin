@@ -39,7 +39,7 @@ An issue is a request, not a ledger entry. Coins change only after the bot's PR 
 
 ## Implementation
 
-All backend logic is Go, with the standard library and no third-party modules:
+All backend logic is Go. Name moderation uses the pinned [go-away](https://github.com/TwiN/go-away) library; the remaining application logic uses the standard library:
 
 - `internal/ledger`: strict command parsing, append-only events, deterministic replay, and accounting.
 - `internal/processor`: authenticated request validation, checkpointing, PR creation and merging, and recovery.
@@ -49,6 +49,10 @@ All backend logic is Go, with the standard library and no third-party modules:
 The interface uses a GeoCities-era design: tiled stars, rainbow headings, beveled panels, and web badges. Labels stay factual. Fonts are system fonts; decorative assets are local SVG/CSS. Animations respect reduced-motion preferences. The footer counter reports actual ledger entries, not fabricated visitor counts.
 
 The canonical ledger is `ledger/events.jsonl`. Each event records its sequence, authenticated numeric actor ID, source issue, original body hash, frozen command, timestamp, and PR number. Available and reserved balances are rebuilt from that ledger. JSON exports are at `/data/state.json` and `/data/events.jsonl` beneath the site's base path.
+
+New recipient names and authenticated GitHub usernames must be 1–10 ASCII letters or digits, with single internal hyphens permitted. Spaces, underscores, Unicode, and leading, trailing, or repeated hyphens are rejected. The Go worker rejects names matched by go-away's profanity/slur dictionary plus a small common-insult extension, including common case, digit, and hyphen obfuscations. This applies to every action and to retries before a ledger PR is created or updated. Rejection messages do not repeat the submitted name. Browser validation mirrors the format rules; the backend remains authoritative for moderation and account usernames.
+
+Name policy is checked when admitting new entries, including frozen requests awaiting a retry. Existing ledger records retain their original validation and accounting rules so a stricter limit or a later dictionary change cannot break replay or alter history. The filter is dictionary-based and primarily English; it can have false positives and miss unsupported terms.
 
 The worker runs with one repository-wide concurrency lock, validates against current `main`, and rewrites its own deterministic branch with only the ledger change before merging its exact head SHA. A request ID can appear only once. The first successful merge determines the winner of competing accept/cancel requests; submission order is not guaranteed. A five-minute scheduled recovery scans open requests because Actions can coalesce pending runs or interrupt execution. Schedules are best-effort and may be delayed; GitHub can disable schedules after 60 days of public-repository inactivity. Manually run the ledger workflow to recover.
 
