@@ -50,6 +50,7 @@ type PullRequest struct {
 type Client struct {
 	Repository, Token, BaseURL string
 	HTTP                       *http.Client
+	RetryDelay                 time.Duration
 }
 type APIError struct {
 	Status  int
@@ -62,7 +63,7 @@ func (e *APIError) Error() string {
 func IsStatus(err error, status int) bool { e, ok := err.(*APIError); return ok && e.Status == status }
 
 func New(repository, token string) *Client {
-	return &Client{Repository: repository, Token: token, BaseURL: "https://api.github.com", HTTP: &http.Client{Timeout: 45 * time.Second}}
+	return &Client{Repository: repository, Token: token, BaseURL: "https://api.github.com", HTTP: &http.Client{Timeout: 45 * time.Second}, RetryDelay: 2 * time.Second}
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, input, output any) error {
@@ -229,15 +230,42 @@ func (c *Client) ClosePR(ctx context.Context, number int) error {
 	return c.Do(ctx, "PATCH", fmt.Sprintf("/pulls/%d", number), map[string]string{"state": "closed"}, nil)
 }
 func (c *Client) Merge(ctx context.Context, number int, sha string) error {
-	var result struct {
-		Merged  bool   `json:"merged"`
-		Message string `json:"message"`
+	var last error
+	for attempt := 0; attempt < 8; attempt++ {
+		if attempt > 0 {
+			timer := time.NewTimer(c.RetryDelay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
+		}
+		// GitHub's PR view can lag a just-updated Git ref. Never relax the SHA guard.
+		var current PullRequest
+		if err := c.Do(ctx, "GET", fmt.Sprintf("/pulls/%d", number), nil, &current); err != nil {
+			return err
+		}
+		if current.Head.SHA != sha {
+			last = fmt.Errorf("waiting for GitHub to observe the expected PR head")
+			continue
+		}
+		var result struct {
+			Merged  bool   `json:"merged"`
+			Message string `json:"message"`
+		}
+		err := c.Do(ctx, "PUT", fmt.Sprintf("/pulls/%d/merge", number), map[string]string{"sha": sha, "merge_method": "squash"}, &result)
+		if IsStatus(err, 409) || IsStatus(err, 405) {
+			last = err
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !result.Merged {
+			return fmt.Errorf("PR was not merged: %s", result.Message)
+		}
+		return nil
 	}
-	if err := c.Do(ctx, "PUT", fmt.Sprintf("/pulls/%d/merge", number), map[string]string{"sha": sha, "merge_method": "squash"}, &result); err != nil {
-		return err
-	}
-	if !result.Merged {
-		return fmt.Errorf("PR was not merged: %s", result.Message)
-	}
-	return nil
+	return last
 }

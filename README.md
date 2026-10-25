@@ -52,6 +52,8 @@ The worker runs with one repository-wide concurrency lock, validates against cur
 
 Idle recovery runs skip deployment. A failed worker still attempts to publish current `main` in case a merge succeeded before the failure. If Pages publication itself fails, rerun the workflow or dispatch it manually to retry.
 
+Internal page and asset links include the published commit as a cache key. While visible, the browser checks the Go-generated JSON snapshot once per minute and on return to the tab, navigating to the latest version if necessary. This keeps balances fresh behind custom-domain caches. A pre-deployment cached 404 must expire or be bypassed with a versioned homepage URL; the app cannot execute inside an intermediary's cached error page.
+
 Only trusted `main` code runs with write permissions. Fork PR code is never executed by the worker; the independent PR CI has a read-only token. GitHub request data is never interpolated into shell commands. Administrators and other trusted repository writers can change code or history; this is not a decentralized or tamper-proof financial system. Keep ordinary participants at public read access.
 
 ## Local development

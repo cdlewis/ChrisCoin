@@ -43,6 +43,13 @@ func RequestURL(repository string, command ledger.Command) string {
 	return "https://github.com/" + repository + "/issues/new?" + query.Encode()
 }
 
+func versioned(path, commit string) string {
+	if commit == "" {
+		return path
+	}
+	return path + "?v=" + url.QueryEscape(commit)
+}
+
 func Build(data []byte, options Options) error {
 	events, err := ledger.Parse(data)
 	if err != nil {
@@ -81,7 +88,9 @@ func Build(data []byte, options Options) error {
 		page.Recent = append(page.Recent, events[i])
 	}
 	functions := template.FuncMap{
-		"inc": func(n int) int { return n + 1 },
+		"homeURL":  func() string { return versioned(base+"/", options.Commit) },
+		"assetURL": func(name string) string { return versioned(base+"/assets/"+name, options.Commit) },
+		"inc":      func(n int) int { return n + 1 },
 		"coins": func(n int64) string {
 			raw := strconv.FormatInt(n, 10)
 			for i := len(raw) - 3; i > 0; i -= 3 {
@@ -89,8 +98,8 @@ func Build(data []byte, options Options) error {
 			}
 			return raw
 		},
-		"userURL":  func(id int64) string { return fmt.Sprintf("%s/users/%d/", base, id) },
-		"offerURL": func(id string) string { return base + "/offers/" + id + "/" },
+		"userURL":  func(id int64) string { return versioned(fmt.Sprintf("%s/users/%d/", base, id), options.Commit) },
+		"offerURL": func(id string) string { return versioned(base+"/offers/"+id+"/", options.Commit) },
 		"account":  func(id int64) *ledger.Account { return state.Accounts[id] },
 		"acceptURL": func(id string) string {
 			return RequestURL(options.Repository, ledger.Command{Action: "accept", OfferID: id})

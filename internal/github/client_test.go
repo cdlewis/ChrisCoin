@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testClient(t *testing.T, handler http.HandlerFunc) *Client {
@@ -124,6 +125,10 @@ func TestPaginationSkipsPullRequests(t *testing.T) {
 
 func TestMergeUsesExactHeadSHAAndChecksResult(t *testing.T) {
 	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			fmt.Fprint(w, `{"head":{"sha":"expected-head"}}`)
+			return
+		}
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		if r.Method != "PUT" || !reflect.DeepEqual(body, map[string]string{"sha": "expected-head", "merge_method": "squash"}) {
@@ -133,6 +138,40 @@ func TestMergeUsesExactHeadSHAAndChecksResult(t *testing.T) {
 	})
 	if err := client.Merge(context.Background(), 1, "expected-head"); err == nil {
 		t.Fatal("treated unmerged PR as success")
+	}
+}
+
+func TestMergeWaitsForUpdatedHeadAndRetriesStaleMergeView(t *testing.T) {
+	reads, merges := 0, 0
+	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			reads++
+			if reads == 1 {
+				fmt.Fprint(w, `{"head":{"sha":"old-head"}}`)
+			} else {
+				fmt.Fprint(w, `{"head":{"sha":"new-head"}}`)
+			}
+			return
+		}
+		merges++
+		var body map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["sha"] != "new-head" {
+			t.Fatal("merge SHA guard was relaxed")
+		}
+		if merges == 1 {
+			w.WriteHeader(409)
+			fmt.Fprint(w, `{"message":"Head branch was modified"}`)
+		} else {
+			fmt.Fprint(w, `{"merged":true}`)
+		}
+	})
+	client.RetryDelay = time.Millisecond
+	if err := client.Merge(context.Background(), 1, "new-head"); err != nil {
+		t.Fatal(err)
+	}
+	if reads != 3 || merges != 2 {
+		t.Fatalf("unexpected retry sequence: reads=%d merges=%d", reads, merges)
 	}
 }
 

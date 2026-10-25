@@ -1,4 +1,23 @@
-/* The browser only builds GitHub URLs and filters the public balance table. */
+/* The browser filters accounts, builds GitHub URLs, and checks snapshot freshness. */
+async function refreshSnapshot() {
+  const current = document.body.dataset.commit;
+  if (!current || document.hidden) return;
+  try {
+    // A fresh query avoids long-lived intermediary caches on custom Pages domains.
+    const response = await fetch(`${document.body.dataset.basePath}/data/state.json?fresh=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) return;
+    const snapshot = await response.json();
+    if (!/^[a-f0-9]{40}$/.test(snapshot.commit) || snapshot.commit === current) return;
+    const next = new URL(window.location.href);
+    // Do not loop if different CDN edges briefly disagree during publication.
+    if (next.searchParams.get('v') === snapshot.commit) return;
+    next.searchParams.set('v', snapshot.commit);
+    window.location.replace(next.toString());
+  } catch { /* The rendered ledger and its publication timestamp remain usable offline. */ }
+}
+refreshSnapshot();
+setInterval(refreshSnapshot, 60000);
+document.addEventListener('visibilitychange', refreshSnapshot);
 const search = document.querySelector('#account-search');
 if (search) {
   search.addEventListener('input', () => {

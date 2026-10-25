@@ -53,6 +53,9 @@ func TestBuildPagesAndEscapeUserContent(t *testing.T) {
 			if !strings.Contains(string(home), base+"/users/1/") || !strings.Contains(string(home), base+"/assets/style.css") {
 				t.Fatal("incorrect base paths")
 			}
+			if !strings.Contains(string(home), base+"/?v="+strings.Repeat("a", 40)) || !strings.Contains(string(home), "/assets/app.js?v="+strings.Repeat("a", 40)) {
+				t.Fatal("page and asset URLs are not versioned")
+			}
 			offer, _ := os.ReadFile(filepath.Join(dir, "offers/offer-2/index.html"))
 			if strings.Contains(string(offer), `<script>alert`) || !strings.Contains(string(offer), "&lt;script&gt;") {
 				t.Fatal("recipient HTML was not escaped")
