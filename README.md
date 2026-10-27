@@ -1,6 +1,6 @@
 # ChrisCoin
 
-Money, by pull request. A silly currency whose ledger lives in Git.
+Money, by pull request. A genius currency whose ledger lives in Git.
 
 **[Open ChrisCoin](https://coin.chrislewis.au/)** · [Public ledger](ledger/events.jsonl)
 
