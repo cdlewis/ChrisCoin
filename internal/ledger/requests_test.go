@@ -98,7 +98,7 @@ func TestSelfPaymentDoesNotMintForAnOrdinaryAccount(t *testing.T) {
 func TestRequestCommandsValidateNamesAndRejectForgedPaymentFields(t *testing.T) {
 	for _, command := range []Command{
 		{Action: "request", Payer: "bad_name", Amount: 10}, {Action: "request", Payer: "moron", Amount: 10},
-		{Action: "request", Payer: "12345678901", Amount: 10}, {Action: "request", Payer: "Alice", Amount: 0},
+		{Action: "request", Payer: "123456789012345678901", Amount: 10}, {Action: "request", Payer: "Alice", Amount: 0},
 		{Action: "fulfill", RequestID: "offer-1"}, {Action: "fulfill", RequestID: "request-1", Amount: 1},
 		{Action: "cancel-request", RequestID: "request-1", Recipient: "Alice"},
 	} {

@@ -7,7 +7,7 @@ import (
 	goaway "github.com/TwiN/go-away"
 )
 
-const MaxNameLength = 10
+const MaxNameLength = 20
 
 // Personal GitHub usernames use ASCII letters/numbers and single internal hyphens.
 var namePattern = regexp.MustCompile(`^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$`)
@@ -31,7 +31,7 @@ func newNameDetector() *goaway.ProfanityDetector {
 // Errors deliberately exclude the submitted name and any matched offensive word.
 func ValidateName(name, field string) error {
 	if len(name) == 0 || len(name) > MaxNameLength || !namePattern.MatchString(name) {
-		return fmt.Errorf("%s must be 1–10 ASCII letters or digits, with only single internal hyphens", field)
+		return fmt.Errorf("%s must be 1–20 ASCII letters or digits, with only single internal hyphens", field)
 	}
 	if nameDetector.IsProfane(name) {
 		return fmt.Errorf("%s contains prohibited language", field)

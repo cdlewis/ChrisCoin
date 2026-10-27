@@ -21,5 +21,5 @@ Other commands (put only one in the block above):
 - Cancel request: `{"action":"cancel-request","requestId":"request-123"}`
 
 Payments to existing ledger usernames settle immediately. For new recipients, ordinary accounts reserve an offer's coins until acceptance or cancellation.
-Recipient names and GitHub usernames must use 1–10 ASCII letters or digits, with single internal hyphens allowed. Profanity is rejected by the backend.
+Recipient names and GitHub usernames must use 1–20 ASCII letters or digits, with single internal hyphens allowed. Profanity is rejected by the backend.
 Once processing starts, the request is frozen. Submit a new issue to make a correction.

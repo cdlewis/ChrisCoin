@@ -304,10 +304,10 @@ func TestUnexpectedPRCannotBeUsedAsAuthority(t *testing.T) {
 
 func TestNamePolicyRejectsBeforeAnyLedgerWrite(t *testing.T) {
 	for _, test := range []struct{ name, login, recipient string }{
-		{"long-login", "longname123", "Amanda"},
+		{"long-login", "longname12345678901234", "Amanda"},
 		{"invalid-login", "bad_name", "Amanda"},
 		{"moderated-login", "idiot", "Amanda"},
-		{"long-recipient", "alice", "longname123"},
+		{"long-recipient", "alice", "longname12345678901234"},
 		{"invalid-recipient", "alice", "bad_name"},
 		{"moderated-recipient", "alice", "moron"},
 	} {
@@ -337,7 +337,7 @@ func TestCurrentUsernameIsCheckedOnFrozenRetry(t *testing.T) {
 	if _, err := s.worker().Process(ctx, issue); err == nil {
 		t.Fatal("expected interrupted merge")
 	}
-	issue.User.Login = "longname123"
+	issue.User.Login = "longname12345678901234"
 	s.issues[1] = issue
 	process(t, s, issue)
 	if s.merges != 0 || len(s.main) != 0 || s.prs["chriscoin/request-1"].State != "closed" {

@@ -63,13 +63,13 @@ if (form) {
     const amount = Number(form.elements.amount.value);
     const error = document.querySelector("#send-error");
     if (
-      recipient.length > 10 ||
+      recipient.length > 20 ||
       !/^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/.test(recipient) ||
       !Number.isSafeInteger(amount) ||
       amount <= 0
     ) {
       error.textContent =
-        "Use a 1–10 character recipient (ASCII letters, digits, single internal hyphens) and a positive whole-number amount.";
+        "Use a 1–20 character recipient (ASCII letters, digits, single internal hyphens) and a positive whole-number amount.";
       error.hidden = false;
       return;
     }

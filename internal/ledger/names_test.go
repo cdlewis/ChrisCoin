@@ -8,7 +8,7 @@ import (
 )
 
 func TestAllowedNames(t *testing.T) {
-	for _, name := range []string{"Alice", "Amanda", "cdlewis", "a", "0", "r2-d2", "a-b-c-d-e1", "1234567890", "assassin"} {
+	for _, name := range []string{"Alice", "Amanda", "cdlewis", "a", "0", "r2-d2", "a-b-c-d-e1", "1234567890", "12345678901", "12345678901234567890", "assassin"} {
 		if err := ValidateName(name, "recipient"); err != nil {
 			t.Errorf("rejected ordinary name %q: %v", name, err)
 		}
@@ -16,7 +16,7 @@ func TestAllowedNames(t *testing.T) {
 }
 
 func TestInvalidNameFormat(t *testing.T) {
-	for i, name := range []string{"", "12345678901", "Ámanda", "A\u200bb", "bob alice", "bob_alice", "bob.alice", "-alice", "alice-", "a--b", " alice", "alice ", "a\nb", "@alice", "a/b"} {
+	for i, name := range []string{"", "123456789012345678901", "Ámanda", "A\u200bb", "bob alice", "bob_alice", "bob.alice", "-alice", "alice-", "a--b", " alice", "alice ", "a\nb", "@alice", "a/b"} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			if err := ValidateName(name, "recipient"); err == nil {
 				t.Fatal("invalid name was accepted")
@@ -43,7 +43,7 @@ func TestProfanityAndObfuscationAreRejected(t *testing.T) {
 }
 
 func TestBackendAdmissionCannotBypassNamePolicy(t *testing.T) {
-	for i, name := range []string{"LongerName1", "bob_alice", "f-u-c-k"} {
+	for i, name := range []string{"LongerName123456789012", "bob_alice", "f-u-c-k"} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			command := Command{Action: "offer", Recipient: name, Amount: 1}
 			if _, err := ParseRequest(RequestBody(command)); err == nil {
