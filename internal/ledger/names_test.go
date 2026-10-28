@@ -27,7 +27,7 @@ func TestInvalidNameFormat(t *testing.T) {
 
 func TestProfanityAndObfuscationAreRejected(t *testing.T) {
 	// Keep test output generic; rejected text must not be copied to user-facing errors.
-	for i, name := range []string{"fuck", "FuCk", "f-u-c-k", "sh1thead", "asshole", "idiot", "moron", "stupid", "loser", "1d10t", "m-o-r-o-n", "\u006e\u0069\u0067\u0067\u0065\u0072"} {
+	for i, name := range []string{"fuck", "FuCk", "f-u-c-k", "sh1thead", "asshole", "idiot", "moron", "stupid", "1d10t", "m-o-r-o-n", "\u006e\u0069\u0067\u0067\u0065\u0072"} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			for _, field := range []string{"recipient", "GitHub username"} {
 				err := ValidateName(name, field)
@@ -86,5 +86,19 @@ func TestHistoricalNamesRemainReplayable(t *testing.T) {
 	}
 	if err := command.Validate(); err == nil {
 		t.Fatal("legacy decoding admitted an invalid new request")
+	}
+}
+
+func TestSuppliedProfanityList(t *testing.T) {
+	for i, name := range strings.Fields(profaneWords) {
+		// Other entries are already excluded by the ASCII username format.
+		if len(name) > MaxNameLength || !namePattern.MatchString(name) {
+			continue
+		}
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			if err := ValidateName(name, "recipient"); err == nil {
+				t.Fatal("supplied prohibited name was accepted")
+			}
+		})
 	}
 }

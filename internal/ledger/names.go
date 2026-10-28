@@ -1,8 +1,10 @@
 package ledger
 
 import (
+	_ "embed"
 	"fmt"
 	"regexp"
+	"strings"
 
 	goaway "github.com/TwiN/go-away"
 )
@@ -12,18 +14,29 @@ const MaxNameLength = 20
 // Personal GitHub usernames use ASCII letters/numbers and single internal hyphens.
 var namePattern = regexp.MustCompile(`^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$`)
 
-// Construct once and never reconfigure: readers can safely share the detector.
-// Defaults recognize case, digit substitutions, and hyphen-separated profanity,
-// while retaining the library's known false-positive exceptions.
+//go:embed profane-words.txt
+var profaneWords string
+
+// Construct once and never reconfigure: readers can safely share the detectors.
+// The raw detector preserves explicitly listed digit and punctuation variants;
+// the standard detector also recognizes case, digit, and hyphen obfuscations.
+var prohibitedNames = func() map[string]bool {
+	words := make(map[string]bool)
+	for _, word := range strings.Fields(profaneWords) {
+		words[strings.ToLower(word)] = true
+	}
+	return words
+}()
+
 var nameDetector = newNameDetector()
+var rawNameDetector = newNameDetector().
+	WithSanitizeLeetSpeak(false).
+	WithSanitizeSpecialCharacters(false).
+	WithSanitizeSpaces(false)
 
 func newNameDetector() *goaway.ProfanityDetector {
-	// The upstream profanity/slur list omits some common insults. Extend its
-	// dictionary through the supported API so the same evasion handling applies.
-	words := append([]string{}, goaway.DefaultProfanities...)
-	words = append(words, "idiot", "moron", "stupid", "loser")
 	return goaway.NewProfanityDetector().
-		WithCustomDictionary(words, goaway.DefaultFalsePositives, goaway.DefaultFalseNegatives).
+		WithCustomDictionary(strings.Fields(strings.ToLower(profaneWords)), goaway.DefaultFalsePositives, nil).
 		WithSanitizeAccents(false)
 }
 
@@ -33,7 +46,8 @@ func ValidateName(name, field string) error {
 	if len(name) == 0 || len(name) > MaxNameLength || !namePattern.MatchString(name) {
 		return fmt.Errorf("%s must be 1–20 ASCII letters or digits, with only single internal hyphens", field)
 	}
-	if nameDetector.IsProfane(name) {
+	// Explicit list entries take precedence over the library's exceptions.
+	if prohibitedNames[strings.ToLower(name)] || rawNameDetector.IsProfane(name) || nameDetector.IsProfane(name) {
 		return fmt.Errorf("%s contains prohibited language", field)
 	}
 	return nil
